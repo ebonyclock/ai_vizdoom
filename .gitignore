@@ -1,0 +1,14 @@
+*~
+**.pyc
+**.o
+**.so
+**/build
+**/CMakeCache.txt
+**/CMakeFiles
+**/CMakeScripts
+**/cmake_install.cmake
+**/install_manifest.txt
+.idea
+
+params/*
+results/*
