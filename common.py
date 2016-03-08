@@ -1,4 +1,4 @@
-from vizia import *
+from vizdoom import *
 import numpy as np
 
 from qengine import QEngine
@@ -147,4 +147,5 @@ def engine_setup_health( game ):
     engine_args["epsilon_decay_steps"]= 500000
     engine_args["epsilon_decay_start_step"]= 50000
     engine_args["batch_size"] = 40
+    engine_args["history_length"] = 1
     return engine_args

@@ -1,13 +1,13 @@
 #!/usr/bin/python
 from common import *
-from vizia import ScreenResolution
+from vizdoom import ScreenResolution
 
-filename = "health_guided_skip4_epoch44"
-loadfile = "params/"+filename
-config_file = "config_health_guided" + ".properties"
+filename = "superhealth"
+loadfile = "params/"+filename+"_skip4"
+config_file = "superhealth" + ".cfg"
 
 game = DoomGame()
-game.load_config("config_common.properties")
+game.load_config("common.cfg")
 game.load_config(config_file)
 
 game.set_window_visible(True)

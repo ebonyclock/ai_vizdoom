@@ -1,18 +1,21 @@
 #!/usr/bin/python
 from common import *
-from vizia import *
+from vizdoom import *
 from tqdm import tqdm
 import pickle
 
-filename = "health_guided"
+filename = "superhealth"
 setup = engine_setup_health
-config_file = "config_health_guided" + ".properties"
+config_file = "superhealth" + ".cfg"
 
-suffix = "_skill5"
+suffix = "_mem4"
 skiprate = 4
 savefile = None
+loadfile = None
+
 savefile = "params/"+filename+"_skip"+str(skiprate) + suffix
-loadfile = "params/"+filename+"_skip"+str(skiprate) 
+#loadfile = "params/"+filename+"_skip"+str(skiprate) + suffix
+#loadfile = "params/"+filename+"_skip"+str(skiprate) 
 
 results_savefile = None#"results/health_70"
 if results_savefile:
@@ -26,9 +29,9 @@ if results_savefile:
     results["min"] = []
     results["epsilon"] = []
 game = DoomGame()
-game.load_config("config_common.properties")
+game.load_config("common.cfg")
 game.load_config(config_file)
-game.set_doom_skill(5)
+#game.set_doom_skill(0)
 
 #game.clear_available_game_variables()
 print "Initializing DOOM ..."
@@ -38,7 +41,7 @@ print "DOOM initialized."
 
 if loadfile:
     engine = QEngine.load(game, loadfile)
-    engine._epsilon = 0.0
+    engine._epsilon = 0.1
     #engine._epsilon_decay_start = 0
     #engine._epsilon_decay_stride = 0.4/1000000.0
 else:
@@ -61,7 +64,7 @@ test_frequency = 1;
 overall_start = time()
 
 
-epoch = 70
+epoch = 138
 print "\nLearning ..."
 while epoch < epochs:
     print "\nEpoch", epoch

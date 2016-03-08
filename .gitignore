@@ -12,3 +12,6 @@
 
 params/*
 results/*
+**.bak
+vizdoom
+vizdoom.ini

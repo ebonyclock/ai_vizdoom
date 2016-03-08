@@ -4,10 +4,11 @@ import random
 import cPickle as pickle
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
-from vizia import  *
+from vizdoom import  *
 import itertools as it
 from random import choice
 from time import sleep
+
 class IdentityImageConverter:
     def __init__(self, source):
         self._source = source
@@ -268,6 +269,9 @@ class QEngine:
             for i in range(self._update_pattern[1]):
                 self.learn_batch()
     
+    def add_transition(s, a, s2, r):
+        self._transitions.add_transition(s, a, s2, r)
+        
     def learn_batch(self):
         self._evaluator.learn(self._transitions.get_sample())
       
