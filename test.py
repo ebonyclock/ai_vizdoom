@@ -7,7 +7,7 @@ game.load_config("common.cfg")
 game.load_config("superhealth.cfg")
 game.set_mode(Mode.SPECTATOR)
 game.set_window_visible(True)
-game.set_screen_resolution(ScreenResolution.RES_640X480)
+#game.set_screen_resolution(ScreenResolution.RES_640X480)
 game.set_render_hud(True)
 
 

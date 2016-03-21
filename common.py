@@ -67,28 +67,31 @@ def agenerator_left_right_move(the_game):
 
 def create_mlp_evaluator(state_format, actions_number, gamma):
     return None
-def create_linear_evaluator(state_format, actions_number, gamma):
+def create_linear_evaluator(state_format, actions_number):
     eval_args = dict()
-    eval_args["gamma"] = gamma
+    eval_args["gamma"] = 0.91
     eval_args["state_format"] = state_format
     eval_args["actions_number"] = actions_number
+    eval_args["batchsize"] = batchsize
     eval_args["learning_rate"] = 0.01
 
     return LinearEvaluator(**eval_args)
 
-def create_cnn_evaluator(state_format, actions_number, gamma):
+def create_cnn_evaluator(state_format, actions_number, batchsize):
     cnn_args = dict()
-    cnn_args["gamma"] = gamma
+    cnn_args["gamma"] = 1.0
     cnn_args["state_format"] = state_format
     cnn_args["actions_number"] = actions_number
+    cnn_args["batchsize"] = batchsize
     #cnn_args["updates"] = clipped_sgd
     cnn_args["learning_rate"] = 0.01
+    cnn_args["max_q"] = 21
     #cnn_args["regularization"] = [[l1,1e-3],[l2,1e-3]]
 
-    network_args = dict(hidden_units=[800], hidden_layers=1)
-    network_args["conv_layers"] = 2
+    network_args = dict(hidden_units=[1000], hidden_layers=1)
+    network_args["conv_layers"] = 3
     network_args["pool_size"] = [(2, 2),(2,2),(1,2)]
-    network_args["num_filters"] = [32,32,48]
+    network_args["num_filters"] = [32,32,32]
     network_args["filter_size"] = [7,4,2]
     network_args["output_nonlin"] = None
     #network_args["output_nonlin"] = create_cutoff(2100)
@@ -122,7 +125,6 @@ def engine_setup_basic( game ):
     engine_args = dict()
     engine_args["evaluator"] = create_cnn_evaluator
     engine_args["game"] = game
-    engine_args['gamma'] = 0.99
     engine_args["reward_scale"] = 0.01
     engine_args['image_converter'] = ChannelScaleConverter
     engine_args["epsilon_decay_steps"] = 100000
@@ -135,17 +137,16 @@ def engine_setup_health( game ):
     engine_args = dict()
     engine_args["evaluator"] = create_cnn_evaluator
     engine_args["game"] = game
-    engine_args['gamma'] = 0.91
     #engine_args['gamma_delta'] = 1/1000000.0
     engine_args["reward_scale"] = 0.01
 
     #engine_args['actions_generator'] = agenerator_left_right_move
     engine_args['image_converter'] = ChannelScaleConverter
-    engine_args["shaping_on"] = True
+    engine_args["shaping_on"] = False
     engine_args["count_states"] = True
     engine_args["misc_scale"] = [0.01,1/2100.0]
     engine_args["epsilon_decay_steps"]= 500000
     engine_args["epsilon_decay_start_step"]= 50000
-    engine_args["batch_size"] = 40
-    engine_args["history_length"] = 1
+    engine_args["batchsize"] = 40
+    engine_args["history_length"] = 4
     return engine_args

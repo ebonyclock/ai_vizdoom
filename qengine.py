@@ -45,15 +45,18 @@ class QEngine:
         self._initialize(**kwargs)
         kwargs["game"] = None
 
+    def _prepare_for_save(self):
+        self._qengine_args["epsilon"] = self._epsilon
+        self._qengine_args["steps"] = self._steps
+
     def params_to_print(self):
         res = ""
-        res += "gamma " +str(self._gamma)
         res += "\nskiprate "+str(self._skiprate)
-        res += "\nepsilon_start "+str(self._start_epsilon)
-        res += "\nepsilon_end" +str(self._end_epsilon)
+        res += "\nepsilon "+str(self._epsilon)
+        res += "\nend_epsilon" +str(self._end_epsilon)
         res += "\nepsilon_decay_steps " +str(self._epsilon_decay_steps)
         res += "\nepsilon_decay_start " +str(self._epsilon_decay_start)
-        res += "\nbatch_size " + str(self._batch_size)
+        res += "\nbatchsize " + str(self._batchsize)
         res += "\nupdate_pattern " + str(self._update_pattern)
         res += "\nreward_scale " +str(self._reward_scale)
         res +="\n\nNetwork params:\n"
@@ -62,9 +65,9 @@ class QEngine:
         res +="\n" 
         return res
 
-    def _initialize(self, game, evaluator, history_length=1, actions_generator=None, gamma=0.99, batch_size=40, update_pattern=(4,4),
-                   bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1,epsilon_decay_start_step=100000, epsilon_decay_steps=100000, gamma_delta=0, 
-                   reward_scale=1.0, misc_scale=None, max_reward=None, image_converter=None, skiprate = 1, shaping_on = False, count_states = False):
+    def _initialize(self, game, evaluator, history_length=1, actions_generator=None, batchsize=40, update_pattern=(4,4),
+                   bank_capacity=10000, epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000, epsilon_decay_steps=100000, 
+                   reward_scale=1.0, misc_scale=None, max_reward=None, image_converter=None, skiprate=1, shaping_on=False, count_states=False, steps=0):
     # Line that makes sublime collapse code correctly
 
         if image_converter:
@@ -77,17 +80,14 @@ class QEngine:
         self._max_reward = np.float32(max_reward) 
         self._reward_scale = reward_scale
         self._game = game
-        self._gamma = gamma
-        self._batch_size = batch_size
+        self._batchsize = batchsize
         self._history_length = max(history_length, 1)
         self._update_pattern = update_pattern
-        self._start_epsilon = max(min(start_epsilon, 1.0), 0.0)
-        self._epsilon = self._start_epsilon
+        self._epsilon = max(min(epsilon, 1.0), 0.0)
         self._end_epsilon = min(max(end_epsilon, 0.0), self._epsilon)
         self._epsilon_decay_steps = epsilon_decay_steps
         self._epsilon_decay_stride = (self._epsilon - end_epsilon) / epsilon_decay_steps
         self._epsilon_decay_start = epsilon_decay_start_step
-        self._gamma_delta = gamma_delta
         self._skiprate = max(skiprate, 1)
         self._shaping_on = shaping_on
 
@@ -96,7 +96,7 @@ class QEngine:
 
         self.learning_mode = True
         
-        self._steps = 0
+        self._steps = steps
         if actions_generator == None:
             self._actions = default_actions_generator(game)
         else:
@@ -130,9 +130,9 @@ class QEngine:
         state_format = dict()
         state_format["s_img"] = img_shape
         state_format["s_misc"] = self._misc_len*self._history_length
-        self._transitions = TransitionBank(state_format, bank_capacity, batch_size)
+        self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
 
-        self._evaluator = evaluator(state_format, len(self._actions), self._gamma)
+        self._evaluator = evaluator(state_format, len(self._actions), self._batchsize)
         self._current_image_state = np.zeros(img_shape, dtype=np.float32)
  
     def _update_state(self):
@@ -162,7 +162,6 @@ class QEngine:
             if self._misc_state_included:
                 self._current_misc_state[:] = misc
                 
-
     def new_episode(self, update_state=False):
         self._game.new_episode()
         self.reset_state()     
@@ -186,7 +185,6 @@ class QEngine:
             s = [self._current_image_state.copy()]
         return s
 
-   
     # Sets the whole state to zeros. 
     def reset_state(self):
         self._current_image_state.fill(0.0)
@@ -227,11 +225,6 @@ class QEngine:
 	        self._epsilon -= self._epsilon_decay_stride
 	        self._epsilon = max(self._epsilon, 0)
 
-        # gamma changes
-        if self._gamma <1 and self._gamma_delta>0:
-            self._gamma += self._gamma_delta
-            self._evaluator._gamma = self._gamma
-
 	    # Copy because state will be changed in a second
         s = self._current_state_copy();
 
@@ -265,13 +258,13 @@ class QEngine:
             self._transitions.add_transition(s, a, s2, r)
     
         # Perform q-learning once for a while
-        if self._steps % self._update_pattern[0] == 0 and self._steps > self._batch_size:
+        if self._steps % self._update_pattern[0] == 0 and self._steps > self._batchsize:
             for i in range(self._update_pattern[1]):
                 self.learn_batch()
     
-    def add_transition(s, a, s2, r):
-        self._transitions.add_transition(s, a, s2, r)
-        
+    def add_transition(s, a, s2, r, terminal):
+        self._transitions.add_transition(s, a, s2, r, terminal)
+
     def learn_batch(self):
         self._evaluator.learn(self._transitions.get_sample())
       
@@ -314,6 +307,7 @@ class QEngine:
     # Saves network weights to a file
     def save_params(self, filename):
         print "Saving network weights to " + filename +"..."
+        self._prepare_for_save()
         params = get_all_param_values( self._evaluator.get_network() )
         pickle.dump( params, open( filename, "wb" ) )
         print "Saving finished."
@@ -338,7 +332,6 @@ class QEngine:
         qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
         set_all_param_values( qengine._evaluator.get_network(), network_params )
-        
         print "Loading finished."
         return qengine
 

@@ -3,7 +3,8 @@ from common import *
 from vizdoom import ScreenResolution
 
 filename = "superhealth"
-loadfile = "params/"+filename+"_skip4"
+suffix = "_mem4_3l"
+loadfile = "params/"+filename+"_skip4"+suffix
 config_file = "superhealth" + ".cfg"
 
 game = DoomGame()
@@ -25,12 +26,13 @@ for p in get_all_param_values(engine.get_network()):
 
 
 episode_sleep = 0.5
+action_sleep = 0.02
 
 episodes = 20
 for i in range(episodes):
     game.new_episode()
     while not game.is_episode_finished():
-        engine.make_rendered_step(sleep_time = 0.02)
+        engine.make_rendered_step(sleep_time = action_sleep)
 
         #s = game.get_state()
         #print "HP:",s.game_variables

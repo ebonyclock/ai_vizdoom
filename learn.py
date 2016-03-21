@@ -8,7 +8,8 @@ filename = "superhealth"
 setup = engine_setup_health
 config_file = "superhealth" + ".cfg"
 
-suffix = "_mem4"
+suffix = "_mem4_3l_noshape"
+
 skiprate = 4
 savefile = None
 loadfile = None
@@ -17,7 +18,7 @@ savefile = "params/"+filename+"_skip"+str(skiprate) + suffix
 #loadfile = "params/"+filename+"_skip"+str(skiprate) + suffix
 #loadfile = "params/"+filename+"_skip"+str(skiprate) 
 
-results_savefile = None#"results/health_70"
+results_savefile ="results/"+filename+"_skip"+str(skiprate) + suffix+".res"
 if results_savefile:
     results = dict()
     results["epoch"] = []
@@ -41,9 +42,7 @@ print "DOOM initialized."
 
 if loadfile:
     engine = QEngine.load(game, loadfile)
-    engine._epsilon = 0.1
-    #engine._epsilon_decay_start = 0
-    #engine._epsilon_decay_stride = 0.4/1000000.0
+
 else:
     engine_args = setup(game)
     engine_args["skiprate"] = skiprate
@@ -64,7 +63,7 @@ test_frequency = 1;
 overall_start = time()
 
 
-epoch = 138
+epoch = 1
 print "\nLearning ..."
 while epoch < epochs:
     print "\nEpoch", epoch

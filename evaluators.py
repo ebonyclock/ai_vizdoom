@@ -6,28 +6,33 @@ from theano.compile.nanguardmode import NanGuardMode
 from lasagne.nonlinearities import tanh, rectify, leaky_rectify
 from lasagne.updates import sgd, nesterov_momentum, norm_constraint
 from lasagne.objectives import squared_error
-from lasagne.objectives import squared_error
 from lasagne.regularization import regularize_layer_params
 import lasagne.layers as ls
 from time import time
+from transition_bank import TransitionBank
 
 def relu_weights_initializer(alpha = 0.01):
     return lasagne.init.GlorotNormal(gain=np.sqrt(2/(1+alpha**2)))
     
 class MLPEvaluator:
-    def __init__(self, state_format, actions_number, network_args=dict(), gamma=0.99, updates=sgd, learning_rate = 0.01, regularization = None):
+    def __init__(self, state_format, actions_number, batchsize, network_args=dict(), gamma=np.float32(0.99), updates=sgd, learning_rate = 0.01, regularization = None, max_q=None):
+
+        self._inputs = dict()
 
         self._loss_history = []
         self._misc_state_included = (state_format["s_misc"] > 0)
         self._gamma = gamma
         if self._misc_state_included:
-            self._misc_inputs = tensor.matrix('misc_inputs')
+            self._inputs["X_misc"] = tensor.matrix("X_misc")
             self._misc_len = state_format["s_misc"]
         else:
             self._misc_len = None
 
-        self._targets = tensor.matrix('targets')
-        self._image_inputs = tensor.tensor4('image_inputs')
+        self._inputs["X"] = tensor.tensor4("X")
+        self._inputs["Q2"] = tensor.vector("Q2")
+        self._inputs["A"] = tensor.vector("Action", dtype="int32")
+        self._inputs["R"] = tensor.vector("Reward") 
+        self._inputs["Nonterminal"]=tensor.vector("Nonterminal", dtype ="int8")
 
         network_image_input_shape = list(state_format["s_img"])
         network_image_input_shape.insert(0, None)
@@ -36,24 +41,53 @@ class MLPEvaluator:
         self._single_image_input_shape = list(network_image_input_shape)
         self._single_image_input_shape[0] = 1
 
-        
         network_args["img_input_shape"] = network_image_input_shape
         network_args["misc_len"] = self._misc_len
         network_args["output_size"] = actions_number
 
         self._initialize_network(**network_args)
         print "Network initialized."
-        self._compile(updates, learning_rate, regularization)
+        self._compile(batchsize, updates, learning_rate, regularization, max_q)
 
-    def _compile(self, updates, learning_rate, regularization ):
+    def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=[500], hidden_layers=1, hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
+        print "Initializing MLP network..."
+        # image input layer
+        network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
+        # hidden layers
+        for i in range(hidden_layers):
+            network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin, W=weights_initializer())
         
-        predictions = ls.get_output(self._network)
+        # misc layer and merge with rest of the network
+        if self._misc_state_included:
+            # misc input layer
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
+            # merge layer
+            network = ls.ConcatLayer([network, misc_input_layer])
+
+        # output layer
+        network = ls.DenseLayer(network, output_size, nonlinearity = output_nonlin)
+        self._network = network
+
+    def _compile(self, batchsize, updates, learning_rate, regularization, max_q):
+        
+        Q = ls.get_output(self._network)
+        #if max_q:
+            #Q = Q.clip(np.float32(-max_q), np.float32(max_q))
+        A = self._inputs["A"]
+        R = self._inputs["R"]
+        Nonterminal = self._inputs["Nonterminal"]
+        Q2 = self._inputs["Q2"]
+
+        TargetQ = tensor.set_subtensor(Q[range(batchsize), A], R+ self._gamma*Nonterminal*Q2)
+        if max_q:
+            TargetQ = TargetQ.clip(np.float32(-max_q), np.float32(max_q))
+
         regularization_term = 0.0
         if regularization:
             for method, coefficient in regularization:
                 regularization_term += coefficient * regularize_layer_params(self._network, method)
 
-        loss = squared_error(predictions, self._targets).mean()
+        loss = squared_error(Q, TargetQ).mean()
         regularized_loss = loss + regularization_term
         params = ls.get_all_params(self._network, trainable=True)
         updates = updates(regularized_loss, params, learning_rate)
@@ -64,64 +98,40 @@ class MLPEvaluator:
         # TODO find out why this causes problems with misc vector
         #mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         mode = None
-        
         if self._misc_state_included:
-            self._learn = theano.function([self._image_inputs, self._misc_inputs, self._targets], loss, updates=updates,
-                                          mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._image_inputs, self._misc_inputs], predictions, mode=mode,
-                                             name="eval_fn")
+            self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], Q2, A, R, Nonterminal], loss, updates=updates, mode=mode, name="learn_fn")
+            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], Q, mode=mode,name="eval_fn")
         else:
-            self._learn = theano.function([self._image_inputs, self._targets], loss, updates=updates)
-            self._evaluate = theano.function([self._image_inputs], predictions)
+            self._learn = theano.function([self._inputs["X"], Q2, A, R, Nonterminal], loss, updates=updates, mode=mode, name="learn_fn")
+            self._evaluate = theano.function([self._inputs["X"]], Q, mode=mode, name="eval_fn")
         print "Theano functions compiled."
 
-    def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=[500], hidden_layers=1, hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
-        print "Initializing MLP network..."
-        # image input layer
-        network = ls.InputLayer(shape=img_input_shape, input_var=self._image_inputs)
-        # hidden layers
-        for i in range(hidden_layers):
-            network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin, W=weights_initializer())
-        
-        # misc layer and merge with rest of the network
-        if self._misc_state_included:
-            # misc input layer
-            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._misc_inputs)
-            # merge layer
-            network = ls.ConcatLayer([network, misc_input_layer])
-
-        # output layer
-        network = ls.DenseLayer(network, output_size, nonlinearity = output_nonlin)
-        self._network = network
-
+    
     def learn(self, transitions):
-        ## TODO get rid of second forward pass
-        # Learning approximation: Q = r + terminal * 
+        # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
         X = transitions["s1_img"]
         X2 = transitions["s2_img"]
         if self._misc_state_included:
             X_misc = transitions["s1_misc"]
             X2_misc = transitions["s2_misc"]
-            Y =  self._evaluate(X, X_misc)
-            Q2 = self._gamma*np.max(self._evaluate(X2,X2_misc),axis=1)
+            Q2 = np.max(self._evaluate(X2,X2_misc),axis=1)
         else:
-            Y =  self._evaluate(X)
-            Q2 = self._gamma*np.max(self._evaluate(X2 ),axis=1) 
-
-        for row,a,target in zip(Y,transitions["a"],transitions["r"] +(-transitions["terminal"]*Q2)):
-            row[a] = target
-
+            Q2 = np.max(self._evaluate(X2 ),axis=1) 
+        #DEBUG
+        #print Q2
         if self._misc_state_included:
-            loss = self._learn(X, X_misc, Y)
+            loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"],transitions["nonterminal"])
         else:
-            loss = self._learn(X, Y)
+            loss = self._learn(X, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
             
         self._loss_history.append(loss)
 
     def best_action(self, state):
         if self._misc_state_included:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape), state[1].reshape(1,self._misc_len))
-            a = np.argmax(qvals)      
+            a = np.argmax(qvals)    
+            #DEBUG
+            #print np.max(qvals)  
         else:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape))
             a = np.argmax(qvals)
@@ -146,7 +156,7 @@ class CNNEvaluator(MLPEvaluator):
 
         print "Initializing CNN ..."
         # image input layer
-        network = ls.InputLayer(shape=img_input_shape, input_var=self._image_inputs)
+        network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
 
         # convolution and pooling layers
@@ -159,7 +169,7 @@ class CNNEvaluator(MLPEvaluator):
         
         if self._misc_state_included:
             # misc input layer
-            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._misc_inputs)
+            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._inputs["X_misc"])
             # merge layer
             network = ls.ConcatLayer([network, misc_input_layer])
 
@@ -179,11 +189,11 @@ class LinearEvaluator(MLPEvaluator):
 
         print "Initializing Linear evaluator ..."
         # image input layer
-        network = ls.InputLayer(shape=img_input_shape, input_var=self._image_inputs)
+        network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
         if self._misc_state_included:
             # misc input layer
-            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._misc_inputs)
+            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._inputs["X_misc"])
             # merge layer
             network = ls.ConcatLayer([network, misc_input_layer])
 
