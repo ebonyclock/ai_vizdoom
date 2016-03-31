@@ -39,5 +39,5 @@ for i in range(episodes):
     
     if episode_sleep>0:
         sleep(episode_sleep)
-    print i+1,"Reward:", game.get_summary_reward()
+    print i+1,"Reward:", game.get_total_reward()
 game.close()

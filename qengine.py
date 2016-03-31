@@ -279,7 +279,7 @@ class QEngine:
 	        while not self._game.is_episode_finished():
 	            self.make_step()
 
-        return np.float32(self._game.get_summary_reward())
+        return np.float32(self._game.get_total_reward())
 
 #################################### UTIL STUFF ####################################
     def get_actions_stats(self, clear=False, norm=True):

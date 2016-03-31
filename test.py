@@ -25,5 +25,5 @@ for i in range(episodes):
     while not game.is_episode_finished():
         game.advance_action()
         print doom_fixed_to_double(game.get_game_variable(GameVariable.USER1))
-    print i+1,"Reward:", game.get_summary_reward()
+    print i+1,"Reward:", game.get_total_reward()
 game.close()

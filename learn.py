@@ -75,7 +75,7 @@ while epoch < epochs:
         engine.new_episode(update_state=True)
         for step in tqdm(range(training_steps_per_epoch)):
             if game.is_episode_finished():
-                r = game.get_summary_reward()
+                r = game.get_total_reward()
                 rewards.append(r)
                 engine.new_episode(update_state=True)
             engine.make_learning_step()
