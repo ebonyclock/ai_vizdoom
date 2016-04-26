@@ -1,21 +1,20 @@
 import lasagne
-import theano.tensor as tensor
-import theano
-import numpy as np
-from theano.compile.nanguardmode import NanGuardMode
-from lasagne.nonlinearities import tanh, rectify, leaky_rectify
-from lasagne.updates import sgd, nesterov_momentum, norm_constraint
-from lasagne.objectives import squared_error
-from lasagne.regularization import regularize_layer_params
 import lasagne.layers as ls
-from time import time
-from transition_bank import TransitionBank
+import numpy as np
+import theano
+import theano.tensor as tensor
+from lasagne.nonlinearities import tanh, rectify, leaky_rectify
+from lasagne.objectives import squared_error
+from lasagne.updates import sgd
 
-def relu_weights_initializer(alpha = 0.01):
-    return lasagne.init.GlorotNormal(gain=np.sqrt(2/(1+alpha**2)))
-    
+
+def relu_weights_initializer(alpha=0.01):
+    return lasagne.init.GlorotNormal(gain=np.sqrt(2 / (1 + alpha ** 2)))
+
+
 class MLPEvaluator:
-    def __init__(self, state_format, actions_number, batchsize, network_args=dict(), gamma=np.float32(0.99), updates=sgd, learning_rate = 0.01, regularization = None, max_q=None):
+    def __init__(self, state_format, actions_number, network_args=dict(), gamma=np.float32(0.99),
+                 updates=sgd, learning_rate=0.01, max_q=None):
 
         self._inputs = dict()
 
@@ -31,8 +30,8 @@ class MLPEvaluator:
         self._inputs["X"] = tensor.tensor4("X")
         self._inputs["Q2"] = tensor.vector("Q2")
         self._inputs["A"] = tensor.vector("Action", dtype="int32")
-        self._inputs["R"] = tensor.vector("Reward") 
-        self._inputs["Nonterminal"]=tensor.vector("Nonterminal", dtype ="int8")
+        self._inputs["R"] = tensor.vector("Reward")
+        self._inputs["Nonterminal"] = tensor.vector("Nonterminal", dtype="int8")
 
         network_image_input_shape = list(state_format["s_img"])
         network_image_input_shape.insert(0, None)
@@ -47,16 +46,17 @@ class MLPEvaluator:
 
         self._initialize_network(**network_args)
         print "Network initialized."
-        self._compile(batchsize, updates, learning_rate, regularization, max_q)
+        self._compile(updates, learning_rate, max_q)
 
-    def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=[500], hidden_layers=1, hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
+    def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=[500], hidden_layers=1,
+                            hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
         print "Initializing MLP network..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
         # hidden layers
         for i in range(hidden_layers):
             network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin, W=weights_initializer())
-        
+
         # misc layer and merge with rest of the network
         if self._misc_state_included:
             # misc input layer
@@ -65,48 +65,44 @@ class MLPEvaluator:
             network = ls.ConcatLayer([network, misc_input_layer])
 
         # output layer
-        network = ls.DenseLayer(network, output_size, nonlinearity = output_nonlin)
+        network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
         self._network = network
 
-    def _compile(self, batchsize, updates, learning_rate, regularization, max_q):
-        
-        Q = ls.get_output(self._network)
-        #if max_q:
-            #Q = Q.clip(np.float32(-max_q), np.float32(max_q))
-        A = self._inputs["A"]
-        R = self._inputs["R"]
-        Nonterminal = self._inputs["Nonterminal"]
-        Q2 = self._inputs["Q2"]
+    def _compile(self, updates, learning_rate, max_q):
 
-        TargetQ = tensor.set_subtensor(Q[range(batchsize), A], R+ self._gamma*Nonterminal*Q2)
+        q = ls.get_output(self._network)
         if max_q:
-            TargetQ = TargetQ.clip(np.float32(-max_q), np.float32(max_q))
+            q= q.clip(np.float32(-max_q), np.float32(max_q))
 
-        regularization_term = 0.0
-        if regularization:
-            for method, coefficient in regularization:
-                regularization_term += coefficient * regularize_layer_params(self._network, method)
+        a = self._inputs["A"]
+        r = self._inputs["R"]
+        nonterminal = self._inputs["Nonterminal"]
+        q2 = self._inputs["Q2"]
 
-        loss = squared_error(Q, TargetQ).mean()
-        regularized_loss = loss + regularization_term
+        target_q= tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
+        if max_q:
+            target_q = target_q.clip(np.float32(-max_q), np.float32(max_q))
+
+        loss = squared_error(q, target_q).mean()
+        regularized_loss = loss
         params = ls.get_all_params(self._network, trainable=True)
         updates = updates(regularized_loss, params, learning_rate)
 
-
         print "Compiling Theano functions ..."
-        
+
         # TODO find out why this causes problems with misc vector
-        #mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
+        # mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         mode = None
         if self._misc_state_included:
-            self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], Q2, A, R, Nonterminal], loss, updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], Q, mode=mode,name="eval_fn")
+            self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], q2, a, r, nonterminal], loss,
+                                          updates=updates, mode=mode, name="learn_fn")
+            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], q, mode=mode, name="eval_fn")
         else:
-            self._learn = theano.function([self._inputs["X"], Q2, A, R, Nonterminal], loss, updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"]], Q, mode=mode, name="eval_fn")
+            self._learn = theano.function([self._inputs["X"], q2, a, r, nonterminal], loss, updates=updates, mode=mode,
+                                          name="learn_fn")
+            self._evaluate = theano.function([self._inputs["X"]], q, mode=mode, name="eval_fn")
         print "Theano functions compiled."
 
-    
     def learn(self, transitions):
         # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
         X = transitions["s1_img"]
@@ -114,36 +110,38 @@ class MLPEvaluator:
         if self._misc_state_included:
             X_misc = transitions["s1_misc"]
             X2_misc = transitions["s2_misc"]
-            Q2 = np.max(self._evaluate(X2,X2_misc),axis=1)
+            Q2 = np.max(self._evaluate(X2, X2_misc), axis=1)
         else:
-            Q2 = np.max(self._evaluate(X2 ),axis=1) 
-        #DEBUG
-        #print Q2
+            Q2 = np.max(self._evaluate(X2), axis=1)
+            # DEBUG
+        # print Q2
         if self._misc_state_included:
-            loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"],transitions["nonterminal"])
+            loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
         else:
             loss = self._learn(X, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
-            
+
         self._loss_history.append(loss)
 
     def best_action(self, state):
         if self._misc_state_included:
-            qvals = self._evaluate(state[0].reshape(self._single_image_input_shape), state[1].reshape(1,self._misc_len))
-            a = np.argmax(qvals)    
-            #DEBUG
-            #print np.max(qvals)  
+            qvals = self._evaluate(state[0].reshape(self._single_image_input_shape),
+                                   state[1].reshape(1, self._misc_len))
+            a = np.argmax(qvals)
+            # DEBUG
+            # print np.max(qvals)
         else:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape))
             a = np.argmax(qvals)
         return a
-        
-    def get_mean_loss(self, clear = True):
+
+    def get_mean_loss(self, clear=True):
         m = np.mean(self._loss_history)
         self._loss_history = []
         return m
 
     def get_network(self):
         return self._network
+
 
 class CNNEvaluator(MLPEvaluator):
     def __init__(self, **kwargs):
@@ -152,51 +150,52 @@ class CNNEvaluator(MLPEvaluator):
     def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=2, num_filters=[32, 32],
                             filter_size=[(5, 5), (5, 5)], hidden_units=[256], pool_size=[(2, 2), (2, 2)],
                             hidden_layers=1, conv_nonlin=rectify,
-                            hidden_nonlin=leaky_rectify, output_nonlin=tanh):
+                            hidden_nonlin=leaky_rectify, output_nonlin=tanh, dropout=False):
 
         print "Initializing CNN ..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
-
         # convolution and pooling layers
         for i in range(conv_layers):
             network = ls.Conv2DLayer(network, num_filters=num_filters[i], filter_size=filter_size[i],
-                                                 nonlinearity=conv_nonlin, W=relu_weights_initializer())
+                                     nonlinearity=conv_nonlin, W=relu_weights_initializer())
             network = ls.MaxPool2DLayer(network, pool_size=pool_size[i])
-       
+            if dropout:
+                network = lasagne.layers.dropout(network, p=0.5)
+
         network = ls.FlattenLayer(network)
-        
+
         if self._misc_state_included:
             # misc input layer
-            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._inputs["X_misc"])
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
             # merge layer
             network = ls.ConcatLayer([network, misc_input_layer])
 
-         # dense layers
+            # dense layers
         for i in range(hidden_layers):
             network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin, W=relu_weights_initializer())
-
+            if dropout:
+                network = lasagne.layers.dropout(network, p=0.5)
         # output layer
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
         self._network = network
+
 
 class LinearEvaluator(MLPEvaluator):
     def __init__(self, **kwargs):
         MLPEvaluator.__init__(self, **kwargs)
 
-    def _initialize_network(self, img_input_shape, misc_len, output_size, output_nonlin = None):
-
+    def _initialize_network(self, img_input_shape, misc_len, output_size, output_nonlin=None):
         print "Initializing Linear evaluator ..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
         if self._misc_state_included:
             # misc input layer
-            misc_input_layer = ls.InputLayer(shape=(None,misc_len), input_var=self._inputs["X_misc"])
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
             # merge layer
             network = ls.ConcatLayer([network, misc_input_layer])
-
 
         # output layer
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)

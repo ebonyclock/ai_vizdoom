@@ -1,9 +1,9 @@
 #!/usr/bin/python
-from common import *
 from vizdoom import ScreenResolution
+from qengine import *
 
 filename = "superhealth"
-suffix = "_mem4_3l"
+suffix = "_mem4_newtake"
 loadfile = "params/"+filename+"_skip4"+suffix
 config_file = "superhealth" + ".cfg"
 
@@ -12,6 +12,7 @@ game.load_config("common.cfg")
 game.load_config(config_file)
 
 game.set_window_visible(True)
+game.set_screen_resolution(ScreenResolution.RES_640X480)
 #game.set_render_crosshair(True)
 
 
