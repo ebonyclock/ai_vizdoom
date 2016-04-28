@@ -45,6 +45,9 @@ def default_actions_generator(the_game):
     return actions
 
 
+# TODO get rid af actions_generator
+# TODO get rid of image converter, embed it and remember only shape after scaling
+# TODO to something with loading and saving the network
 class QEngine:
     def __init__(self, **kwargs):
         self._qengine_args = kwargs
@@ -54,22 +57,7 @@ class QEngine:
     def _prepare_for_save(self):
         self._qengine_args["epsilon"] = self._epsilon
         self._qengine_args["steps"] = self._steps
-
-    def params_to_print(self):
-        res = ""
-        res += "\nskiprate " + str(self._framerate - 1)
-        res += "\nepsilon " + str(self._epsilon)
-        res += "\nend_epsilon" + str(self._end_epsilon)
-        res += "\nepsilon_decay_steps " + str(self._epsilon_decay_steps)
-        res += "\nepsilon_decay_start " + str(self._epsilon_decay_start)
-        res += "\nbatchsize " + str(self._batchsize)
-        res += "\nupdate_pattern " + str(self._update_pattern)
-        res += "\nreward_scale " + str(self._reward_scale)
-        res += "\n\nNetwork params:\n"
-        for p in get_all_param_values(self.get_network()):
-            res += str(p.shape) + "\n"
-        res += "\n"
-        return res
+        self._qengine_args["skiprate"] = self._skiprate
 
     def _initialize(self, game, evaluator, history_length=1, actions_generator=None, batchsize=64,
                     update_pattern=(4, 4),
@@ -79,7 +67,7 @@ class QEngine:
                     shaping_on=False, count_states=False, steps=0):
         # Line that makes sublime collapse code correctly
 
-        if image_converter:
+        if image_converter is not None:
             self._image_converter = image_converter(game)
         else:
             self._image_converter = Float32ImageConverter(game)
@@ -97,7 +85,7 @@ class QEngine:
         self._epsilon_decay_steps = epsilon_decay_steps
         self._epsilon_decay_stride = (self._epsilon - end_epsilon) / epsilon_decay_steps
         self._epsilon_decay_start = epsilon_decay_start_step
-        self._framerate = max(skiprate + 1, 0)
+        self._skiprate = max(skiprate, 0)
         self._shaping_on = shaping_on
 
         if self._shaping_on:
@@ -203,7 +191,7 @@ class QEngine:
         # current_state_COPY - copy is here cause tests go worse than training
         a = self._evaluator.best_action(self._current_state_copy())
         self._actions_stats[a] += 1
-        self._game.make_action(self._actions[a], self._framerate)
+        self._game.make_action(self._actions[a], self._skiprate + 1)
 
     def make_rendered_step(self, sleep_time=0):
         self._update_state()
@@ -211,20 +199,23 @@ class QEngine:
         self._actions_stats[a] += 1
 
         self._game.set_action(self._actions[a])
-        for i in range(self._framerate - 1):
+        for i in range(self._skiprate):
             self._game.advance_action(1, False, True)
             sleep(sleep_time)
         self._game.advance_action()
         sleep(sleep_time)
 
-    # UPDATES state (hisotry). Returns the best action. State should not include history
+    # Updates the state and returns the best action.
     def best_action(self, state):
         self._update_state()
         return self._actions[self._evaluator.best_action(self._current_state())]
 
+    # Makes a random action without state update.
     def make_random_step(self):
-        self._game.make_action(choice(self._actions), self._framerate)
+        self._game.make_action(choice(self._actions), self._skiprate + 1)
 
+    # Performs a learning step according to epsilon-greedy policy.
+    # The step spans self._skiprate +1 actions.
     def make_learning_step(self):
         self._steps += 1
         # epsilon decay
@@ -243,7 +234,7 @@ class QEngine:
         self._actions_stats[a] += 1
 
         # make action and get the reward
-        r = self._game.make_action(self._actions[a], self._framerate)
+        r = self._game.make_action(self._actions[a], self._skiprate + 1)
         r = np.float32(r)
         if self._shaping_on:
             sr = np.float32(doom_fixed_to_double(self._game.get_game_variable(GameVariable.USER1)))
@@ -269,6 +260,7 @@ class QEngine:
             for i in range(self._update_pattern[1]):
                 self.learn_batch()
 
+    # Adds a transition to the bank.
     def add_transition(s, a, s2, r, terminal):
         self._transitions.add_transition(s, a, s2, r, terminal)
 
@@ -288,7 +280,7 @@ class QEngine:
 
         return np.float32(self._game.get_total_reward())
 
-    #################################### UTIL STUFF ####################################
+    # Utility stuff
     def get_actions_stats(self, clear=False, norm=True):
         stats = self._actions_stats.copy()
         if norm:
@@ -312,26 +304,36 @@ class QEngine:
     def set_epsilon(self, eps):
         self._epsilon = eps
 
+    def set_skiprate(self, skiprate):
+        self._skiprate = skiprate
+
+    def get_skiprate(self):
+        return self._skiprate
     # Saves network weights to a file
-    def save_params(self, filename):
-        print "Saving network weights to " + filename + "..."
+    def save_params(self, filename, quiet=False):
+        if not quiet:
+            print "Saving network weights to " + filename + "..."
         self._prepare_for_save()
         params = get_all_param_values(self._evaluator.get_network())
         pickle.dump(params, open(filename, "wb"))
-        print "Saving finished."
+        if not quiet:
+            print "Saving finished."
 
     # Loads network weights from the file
-    def load_params(self, filename):
-        print "Loading network weights from " + filename + "..."
+    def load_params(self, filename,quiet=False):
+        if not quiet:
+            print "Loading network weights from " + filename + "..."
         params = pickle.load(open(filename, "rb"))
         set_all_param_values(self._evaluator.get_network(), params)
-        print "Loading finished."
+        if not quiet:
+            print "Loading finished."
 
         # Loads the whole engine with params from file
 
     @staticmethod
-    def load(game, filename):
-        print "Loading qengine from " + filename + "..."
+    def load(game, filename, quiet=False):
+        if not quiet:
+            print "Loading qengine from " + filename + "..."
 
         params = pickle.load(open(filename, "rb"))
 
@@ -341,15 +343,17 @@ class QEngine:
         qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
         set_all_param_values(qengine._evaluator.get_network(), network_params)
-        print "Loading finished."
+        if not quiet:
+            print "Loading finished."
         return qengine
 
     # Saves the whole engine with params to a file
-    def save(self, filename):
-        print "Saving qengine to " + filename + "..."
-
+    def save(self, filename, quiet=False):
+        if not quiet:
+            print "Saving qengine to " + filename + "..."
+        self._prepare_for_save()
         network_params = get_all_param_values(self._evaluator.get_network())
         params = [self._qengine_args, network_params]
         pickle.dump(params, open(filename, "wb"))
-
-        print "Saving finished."
+        if not quiet:
+            print "Saving finished."

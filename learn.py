@@ -1,25 +1,33 @@
 #!/usr/bin/python
 
-from tqdm import tqdm
-from vizdoom import *
-from qengine import *
-from common import *
 from time import time
 
-filename = "basic"
-config_file = filename + ".cfg"
-setup = engine_setup_basic
-suffix = ""
+from tqdm import tqdm
+from vizdoom import *
 
-skiprate = 0
+from common import *
+from qengine import *
+import sys
+
+filename = "superhealth"
+config_file = filename + ".cfg"
+setup = engine_setup_health
+
+
+if len(sys.argv)>1:
+    skiprate = int(sys.argv[1])
+else:
+    skiprate = 4
 savefile = None
 loadfile = None
 
-savefile = "params/" + filename + "_skip" + str(skiprate) + suffix
-#loadfile = "params/" + filename + "_skip" + str(skiprate) + suffix
+suffix = "_120_3l_g99"
+
+savefile = "params/" + filename + "/skip" + str(skiprate) + suffix
+# loadfile = "params/" + filename + "/skip" + str(skiprate) + suffix
 
 
-results_savefile = "results/" + filename + "_skip" + str(skiprate) + suffix + ".res"
+results_savefile = "results/" + filename + "/skip" + str(skiprate) + suffix + ".res"
 if results_savefile:
     results = dict()
     results["epoch"] = []
@@ -44,7 +52,6 @@ print "DOOM initialized."
 
 if loadfile:
     engine = QEngine.load(game, loadfile)
-
 else:
     engine_args = setup(game)
     engine_args["skiprate"] = skiprate
@@ -54,15 +61,15 @@ print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape
 
-epochs = 80
-training_steps_per_epoch = 5000
-test_episodes_per_epoch = 1000
+epochs = np.inf
+training_steps_per_epoch = 2000
+test_episodes_per_epoch = 200
 test_frequency = 1
 overall_start = time()
 
 # Training starts here!
 print
-epoch = 1
+epoch = 0
 while epoch < epochs:
     print "\nEpoch", epoch
     train_time = 0
@@ -78,7 +85,7 @@ while epoch < epochs:
                 r = game.get_total_reward()
                 rewards.append(r)
                 engine.new_episode(update_state=True)
-                train_episodes_finished +=1
+                train_episodes_finished += 1
             engine.make_learning_step()
         end = time()
         train_time = end - start

@@ -4,7 +4,8 @@ from vizdoom import *
 
 game = DoomGame()
 game.load_config("common.cfg")
-game.load_config("superhealth.cfg")
+game.load_config("basic.cfg")
+game.set_doom_scenario_path("basic_grey.wad")
 game.set_mode(Mode.SPECTATOR)
 game.set_window_visible(True)
 #game.set_render_hud(True)

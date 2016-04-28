@@ -14,7 +14,7 @@ def relu_weights_initializer(alpha=0.01):
 
 class MLPEvaluator:
     def __init__(self, state_format, actions_number, network_args=dict(), gamma=np.float32(0.99),
-                 updates=sgd, learning_rate=0.01, max_q=None):
+                 updates=sgd, learning_rate=0.01):
 
         self._inputs = dict()
 
@@ -45,12 +45,12 @@ class MLPEvaluator:
         network_args["output_size"] = actions_number
 
         self._initialize_network(**network_args)
-        print "Network initialized."
-        self._compile(updates, learning_rate, max_q)
+        # print "Network initialized."
+        self._compile(updates, learning_rate)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=[500], hidden_layers=1,
                             hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
-        print "Initializing MLP network..."
+        # print "Initializing MLP network..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
         # hidden layers
@@ -68,11 +68,11 @@ class MLPEvaluator:
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
         self._network = network
 
-    def _compile(self, updates, learning_rate, max_q):
+    def _compile(self, updates, learning_rate):
 
-        q = ls.get_output(self._network)
-        if max_q:
-            q= q.clip(np.float32(-max_q), np.float32(max_q))
+
+        q = ls.get_output(self._network, deterministic=False)
+        deterministic_q = ls.get_output(self._network, deterministic=True)
 
         a = self._inputs["A"]
         r = self._inputs["R"]
@@ -80,15 +80,14 @@ class MLPEvaluator:
         q2 = self._inputs["Q2"]
 
         target_q= tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
-        if max_q:
-            target_q = target_q.clip(np.float32(-max_q), np.float32(max_q))
 
         loss = squared_error(q, target_q).mean()
         regularized_loss = loss
         params = ls.get_all_params(self._network, trainable=True)
+        # TODO enable learning_rate change after compilation
         updates = updates(regularized_loss, params, learning_rate)
 
-        print "Compiling Theano functions ..."
+        # print "Compiling Theano functions ..."
 
         # TODO find out why this causes problems with misc vector
         # mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
@@ -96,12 +95,12 @@ class MLPEvaluator:
         if self._misc_state_included:
             self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], q2, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], q, mode=mode, name="eval_fn")
+            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], deterministic_q, mode=mode, name="eval_fn")
         else:
             self._learn = theano.function([self._inputs["X"], q2, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"]], q, mode=mode, name="eval_fn")
-        print "Theano functions compiled."
+            self._evaluate = theano.function([self._inputs["X"]], deterministic_q, mode=mode, name="eval_fn")
+        # print "Theano functions compiled."
 
     def learn(self, transitions):
         # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
@@ -150,9 +149,9 @@ class CNNEvaluator(MLPEvaluator):
     def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=2, num_filters=[32, 32],
                             filter_size=[(5, 5), (5, 5)], hidden_units=[256], pool_size=[(2, 2), (2, 2)],
                             hidden_layers=1, conv_nonlin=rectify,
-                            hidden_nonlin=leaky_rectify, output_nonlin=tanh, dropout=False):
+                            hidden_nonlin=leaky_rectify, output_nonlin=None, dropout=False):
 
-        print "Initializing CNN ..."
+        # print "Initializing CNN ..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
@@ -187,7 +186,7 @@ class LinearEvaluator(MLPEvaluator):
         MLPEvaluator.__init__(self, **kwargs)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, output_nonlin=None):
-        print "Initializing Linear evaluator ..."
+        # print "Initializing Linear evaluator ..."
         # image input layer
         network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
 
