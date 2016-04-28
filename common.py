@@ -69,7 +69,7 @@ def agenerator_left_right_move(the_game):
 
 # TODO remove this shit
 class ChannelScaleConverter(IdentityImageConverter):
-    reshape_x = 60
+    reshape_x = 120
 
     def __init__(self, source):
         self._source = source
