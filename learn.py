@@ -62,7 +62,7 @@ for p in get_all_param_values(engine.get_network()):
     print p.shape
 
 epochs = np.inf
-training_steps_per_epoch = 500
+training_steps_per_epoch = 2000
 test_episodes_per_epoch = 200
 test_frequency = 1
 overall_start = time()

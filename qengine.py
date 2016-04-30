@@ -4,6 +4,7 @@ import random
 from random import choice
 from time import sleep
 
+import cv2
 import numpy as np
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
@@ -12,31 +13,7 @@ from vizdoom import *
 from transition_bank import TransitionBank
 
 
-class IdentityImageConverter:
-    def __init__(self, source):
-        self._source = source
-
-    def convert(self, img):
-        return img
-
-    def get_screen_width(self):
-        return self._source.get_screen_width()
-
-    def get_screen_height(self):
-        return self._source.get_screen_height()
-
-    def get_screen_channels(self):
-        return self._source.get_screen_channels()
-
-
-class Float32ImageConverter(IdentityImageConverter):
-    def __init__(self, source):
-        self._source = source
-
-    def convert(self, img):
-        return np.float32(img) / 255.0
-
-
+# TODO get rid of this shit
 def default_actions_generator(the_game):
     n = the_game.get_available_buttons_size()
     actions = []
@@ -46,7 +23,6 @@ def default_actions_generator(the_game):
 
 
 # TODO get rid af actions_generator
-# TODO get rid of image converter, embed it and remember only shape after scaling
 # TODO to something with loading and saving the network
 class QEngine:
     def __init__(self, **kwargs):
@@ -63,14 +39,10 @@ class QEngine:
                     update_pattern=(4, 4),
                     bank_capacity=10000, epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
-                    reward_scale=1.0, misc_scale=None, max_reward=None, image_converter=None, skiprate=0,
+                    reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
                     shaping_on=False, count_states=False, steps=0):
         # Line that makes sublime collapse code correctly
 
-        if image_converter is not None:
-            self._image_converter = image_converter(game)
-        else:
-            self._image_converter = Float32ImageConverter(game)
 
         if count_states is not None:
             self._count_states = bool(count_states)
@@ -87,7 +59,6 @@ class QEngine:
         self._epsilon_decay_start = epsilon_decay_start_step
         self._skiprate = max(skiprate, 0)
         self._shaping_on = shaping_on
-
         if self._shaping_on:
             self._last_shaping_reward = 0
 
@@ -102,13 +73,31 @@ class QEngine:
         self._actions_stats = np.zeros([self._actions_num], np.int)
 
         # change img_shape according to the history size
-        self._channels = self._image_converter.get_screen_channels()
+        self._channels = game.get_screen_channels()
         if self._history_length > 1:
             self._channels *= self._history_length
 
-        y = self._image_converter.get_screen_height()
-        x = self._image_converter.get_screen_width()
+        self._scale = float(reshaped_x) / game.get_screen_width()
+        y = int(game.get_screen_height()*self._scale)
+        x = reshaped_x
+
+
         img_shape = [self._channels, y, x]
+
+        if self._scale == 1:
+
+            def convert(img):
+                img = np.float32(img) / 255.0
+                return img
+        else:
+            def convert(img):
+                img = np.float32(img) / 255.0
+                new_image = np.ndarray([img.shape[0], y, x], dtype=np.float32)
+                for i in range(img.shape[0]):
+                    new_image[i] = cv2.resize(img[i], (x, y))
+                return new_image
+
+        self._convert_image = convert
 
         self._misc_len = game.get_available_game_variables_size() + self._count_states
         if self._misc_len > 0:
@@ -132,7 +121,7 @@ class QEngine:
 
     def _update_state(self):
         raw_state = self._game.get_state()
-        img = self._image_converter.convert(raw_state.image_buffer)
+        img = self._convert_image(raw_state.image_buffer)
 
         if self._misc_state_included:
             misc_len = self._misc_len
@@ -261,7 +250,7 @@ class QEngine:
                 self.learn_batch()
 
     # Adds a transition to the bank.
-    def add_transition(s, a, s2, r, terminal):
+    def add_transition(self, s,  a, s2, r, terminal):
         self._transitions.add_transition(s, a, s2, r, terminal)
 
     def learn_batch(self):
@@ -309,6 +298,7 @@ class QEngine:
 
     def get_skiprate(self):
         return self._skiprate
+
     # Saves network weights to a file
     def save_params(self, filename, quiet=False):
         if not quiet:
@@ -320,7 +310,7 @@ class QEngine:
             print "Saving finished."
 
     # Loads network weights from the file
-    def load_params(self, filename,quiet=False):
+    def load_params(self, filename, quiet=False):
         if not quiet:
             print "Loading network weights from " + filename + "..."
         params = pickle.load(open(filename, "rb"))
@@ -328,7 +318,7 @@ class QEngine:
         if not quiet:
             print "Loading finished."
 
-        # Loads the whole engine with params from file
+            # Loads the whole engine with params from file
 
     @staticmethod
     def load(game, filename, quiet=False):

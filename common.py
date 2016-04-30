@@ -1,46 +1,10 @@
 from collections import OrderedDict
 
-import cv2
 import theano.tensor as T
 from lasagne.updates import rmsprop
 from vizdoom import *
 
 from evaluators import *
-from qengine import IdentityImageConverter
-
-
-def double_tanh(x):
-    return 2 * theano.tensor.tanh(x)
-
-
-def create_scaled_tanh(scale):
-    scale = np.float32(scale)
-
-    def scaled_tanh(x):
-        return scale * theano.tensor.tanh(x / scale)
-
-    return scaled_tanh
-
-
-def create_cutoff(threshold):
-    threshold = np.float32(threshold)
-
-    def cutoff(x):
-        return T.maximum(T.minimum(threshold, x), -threshold)
-
-    return cutoff
-
-
-def clipped_sgd(regularized_loss, params, learning_rate):
-    threshold = np.float32(0.0000001)
-    grads = lasagne.updates.get_or_compute_grads(regularized_loss, params)
-    updates = OrderedDict()
-
-    for param, grad in zip(params, grads):
-        delta = learning_rate * grad
-        delta = delta.clip(-threshold, threshold)
-        updates[param] = param - delta
-    return updates
 
 
 # Changes seconds to some nice string
@@ -67,29 +31,6 @@ def agenerator_left_right_move(the_game):
     return [idle, left, right, move]
 
 
-# TODO remove this shit
-class ChannelScaleConverter(IdentityImageConverter):
-    reshape_x = 120
-
-    def __init__(self, source):
-        self._source = source
-        self.x = ChannelScaleConverter.reshape_x
-        self.y = int(self.x * 3 / 4)
-
-    def convert(self, img):
-        img = np.float32(img) / 255.0
-        new_image = np.ndarray([img.shape[0], self.y, self.x], dtype=np.float32)
-        for i in range(img.shape[0]):
-            new_image[i] = cv2.resize(img[i], (self.x, self.y))
-        return new_image
-
-    def get_screen_width(self):
-        return self.x
-
-    def get_screen_height(self):
-        return self.y
-
-
 def create_cnn_evaluator_basic(state_format, actions_number):
     cnn_args = dict()
     cnn_args["gamma"] = 0.99
@@ -114,7 +55,7 @@ def engine_setup_basic(game):
     engine_args["evaluator"] = create_cnn_evaluator_basic
     engine_args["game"] = game
     engine_args["reward_scale"] = 0.01
-    engine_args['image_converter'] = ChannelScaleConverter
+    engine_args['reshaped_x'] = 60
     engine_args["epsilon_decay_steps"] = 100000
     engine_args["epsilon_decay_start_step"] = 100000
     engine_args["batchsize"] = 40
@@ -151,12 +92,12 @@ def engine_setup_health(game):
     engine_args["game"] = game
     engine_args["reward_scale"] = 0.01
 
-    engine_args['image_converter'] = ChannelScaleConverter
+    engine_args['reshaped_x'] = 120
     engine_args["shaping_on"] = True
     engine_args["count_states"] = True
     engine_args["misc_scale"] = [0.01, 1 / 2100.0]
     engine_args["epsilon_decay_steps"] = 100000
     engine_args["epsilon_decay_start_step"] = 4000
     engine_args["batchsize"] = 64
-    #engine_args["history_length"] = 4
+    # engine_args["history_length"] = 4
     return engine_args
