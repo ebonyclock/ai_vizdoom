@@ -20,8 +20,7 @@ def sec_to_str(sec):
     return res
 
 
-# Common functions for learn.py and watch.py
-def agenerator_left_right_move(the_game):
+def left_right_move_actions():
     idle = [0, 0, 0]
     left = [1, 0, 0]
     right = [0, 1, 0]

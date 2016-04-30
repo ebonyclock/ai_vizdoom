@@ -35,12 +35,12 @@ class QEngine:
         self._qengine_args["steps"] = self._steps
         self._qengine_args["skiprate"] = self._skiprate
 
-    def _initialize(self, game, evaluator, history_length=1, actions_generator=None, batchsize=64,
+    def _initialize(self, game,  evaluator, history_length=1, batchsize=64,
                     update_pattern=(4, 4),
-                    bank_capacity=10000, epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
+                    bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
                     reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
-                    shaping_on=False, count_states=False, steps=0):
+                    shaping_on=False, count_states=False, actions=None):
         # Line that makes sublime collapse code correctly
 
 
@@ -52,23 +52,23 @@ class QEngine:
         self._batchsize = batchsize
         self._history_length = max(history_length, 1)
         self._update_pattern = update_pattern
-        self._epsilon = max(min(epsilon, 1.0), 0.0)
+        self._epsilon = max(min(start_epsilon, 1.0), 0.0)
         self._end_epsilon = min(max(end_epsilon, 0.0), self._epsilon)
         self._epsilon_decay_steps = epsilon_decay_steps
         self._epsilon_decay_stride = (self._epsilon - end_epsilon) / epsilon_decay_steps
         self._epsilon_decay_start = epsilon_decay_start_step
         self._skiprate = max(skiprate, 0)
         self._shaping_on = shaping_on
+        self._steps = 0
         if self._shaping_on:
             self._last_shaping_reward = 0
 
         self.learning_mode = True
 
-        self._steps = steps
-        if actions_generator == None:
+        if actions == None:
             self._actions = default_actions_generator(game)
         else:
-            self._actions = actions_generator(game)
+            self._actions = actions
         self._actions_num = len(self._actions)
         self._actions_stats = np.zeros([self._actions_num], np.int)
 
@@ -331,10 +331,14 @@ class QEngine:
         network_params = params[1]
 
         qengine_args["game"] = game
+        steps = qengine_args = qengine_args["steps"]
+        epsilon = qengine_args = qengine_args["epsilon"]
         qengine = QEngine(**qengine_args)
         set_all_param_values(qengine._evaluator.get_network(), network_params)
         if not quiet:
             print "Loading finished."
+            qengine._steps = steps
+            qengine._epsilon = epsilon
         return qengine
 
     # Saves the whole engine with params to a file
