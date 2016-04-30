@@ -1,6 +1,3 @@
-from collections import OrderedDict
-
-import theano.tensor as T
 from lasagne.updates import rmsprop
 from vizdoom import *
 
@@ -30,28 +27,22 @@ def left_right_move_actions():
     return [idle, left, right, move]
 
 
-def create_cnn_evaluator_basic(state_format, actions_number):
+def engine_setup_basic(game):
     cnn_args = dict()
     cnn_args["gamma"] = 0.99
-    cnn_args["state_format"] = state_format
-    cnn_args["actions_number"] = actions_number
     cnn_args["updates"] = sgd
     cnn_args["learning_rate"] = 0.01
 
-    network_args = dict(hidden_units=[800], hidden_layers=1)
-    network_args["conv_layers"] = 2
-    network_args["pool_size"] = [(2, 2), (2, 2)]
-    network_args["num_filters"] = [32, 32]
-    network_args["filter_size"] = [7, 4]
-    network_args["output_nonlin"] = None
+    architecture = dict(hidden_units=[800], hidden_layers=1)
+    architecture["conv_layers"] = 2
+    architecture["pool_size"] = [(2, 2), (2, 2)]
+    architecture["num_filters"] = [32, 32]
+    architecture["filter_size"] = [7, 4]
+    architecture["output_nonlin"] = None
 
-    cnn_args["network_args"] = network_args
-    return CNNEvaluator(**cnn_args)
-
-
-def engine_setup_basic(game):
+    cnn_args["architecture"] = architecture
     engine_args = dict()
-    engine_args["evaluator"] = create_cnn_evaluator_basic
+    engine_args["evaluator"] = cnn_args
     engine_args["game"] = game
     engine_args["reward_scale"] = 0.01
     engine_args['reshaped_x'] = 60
@@ -62,32 +53,27 @@ def engine_setup_basic(game):
     return engine_args
 
 
-def create_cnn_evaluator(state_format, actions_number):
+def engine_setup_health(game):
     cnn_args = dict()
     cnn_args["gamma"] = 0.99
-    cnn_args["state_format"] = state_format
-    cnn_args["actions_number"] = actions_number
     cnn_args["updates"] = rmsprop
     cnn_args["learning_rate"] = 0.0001
     # cnn_args["max_q"] = 21
 
-    network_args = dict(hidden_units=[1024], hidden_layers=1)
-    network_args["conv_layers"] = 3
-    network_args["pool_size"] = [(2, 2), (2, 2), (2, 2)]
-    network_args["num_filters"] = [32, 32, 32]
-    network_args["filter_size"] = [7, 5, 3]
+    architecture = dict(hidden_units=[1024], hidden_layers=1)
+    architecture["conv_layers"] = 3
+    architecture["pool_size"] = [(2, 2), (2, 2), (2, 2)]
+    architecture["num_filters"] = [32, 32, 32]
+    architecture["filter_size"] = [7, 5, 3]
     # network_args["dropout"] = False
     # network_args["output_nonlin"] = None
     # network_args["output_nonlin"] = create_cutoff(2100)
     # network_args["hidden_nonlin"] = None
 
-    cnn_args["network_args"] = network_args
-    return CNNEvaluator(**cnn_args)
+    cnn_args["architecture"] = architecture
 
-
-def engine_setup_health(game):
     engine_args = dict()
-    engine_args["evaluator"] = create_cnn_evaluator
+    engine_args["network_args"] = cnn_args
     engine_args["game"] = game
     engine_args["reward_scale"] = 0.01
 

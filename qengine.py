@@ -9,11 +9,11 @@ import numpy as np
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
 from vizdoom import *
+from evaluators import *
 
 from transition_bank import TransitionBank
 
 
-# TODO get rid of this shit
 def default_actions_generator(the_game):
     n = the_game.get_available_buttons_size()
     actions = []
@@ -35,7 +35,7 @@ class QEngine:
         self._qengine_args["steps"] = self._steps
         self._qengine_args["skiprate"] = self._skiprate
 
-    def _initialize(self, game,  evaluator, history_length=1, batchsize=64,
+    def _initialize(self, game,  network_args, history_length=1, batchsize=64,
                     update_pattern=(4, 4),
                     bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
@@ -116,7 +116,18 @@ class QEngine:
         state_format["s_misc"] = self._misc_len * self._history_length
         self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
 
-        self._evaluator = evaluator(state_format, len(self._actions))
+        if "type" not in network_args.keys():
+            eval_type=None
+        else:
+            eval_type = network_args["type"]
+            del(network_args["type"])
+        network_args["state_format"] = state_format
+        network_args["actions_number"] = len(self._actions)
+        if eval_type in ("cnn",None,""):
+            self._evaluator = CNNEvaluator(**network_args)
+        else:
+            print "Unsupported evaluator type specified"
+
         self._current_image_state = np.zeros(img_shape, dtype=np.float32)
 
     def _update_state(self):
@@ -330,9 +341,12 @@ class QEngine:
         qengine_args = params[0]
         network_params = params[1]
 
-        qengine_args["game"] = game
         steps = qengine_args = qengine_args["steps"]
         epsilon = qengine_args = qengine_args["epsilon"]
+        del(qengine_args["epsilon"])
+        del(qengine_args["steps"])
+
+        qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
         set_all_param_values(qengine._evaluator.get_network(), network_params)
         if not quiet:

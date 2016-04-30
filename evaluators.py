@@ -13,7 +13,7 @@ def relu_weights_initializer(alpha=0.01):
 
 
 class MLPEvaluator:
-    def __init__(self, state_format, actions_number, network_args=dict(), gamma=np.float32(0.99),
+    def __init__(self, state_format, actions_number, architecture=dict(), gamma=np.float32(0.99),
                  updates=sgd, learning_rate=0.01):
 
         self._inputs = dict()
@@ -40,11 +40,11 @@ class MLPEvaluator:
         self._single_image_input_shape = list(network_image_input_shape)
         self._single_image_input_shape[0] = 1
 
-        network_args["img_input_shape"] = network_image_input_shape
-        network_args["misc_len"] = self._misc_len
-        network_args["output_size"] = actions_number
+        architecture["img_input_shape"] = network_image_input_shape
+        architecture["misc_len"] = self._misc_len
+        architecture["output_size"] = actions_number
 
-        self._initialize_network(**network_args)
+        self._initialize_network(**architecture)
         # print "Network initialized."
         self._compile(updates, learning_rate)
 
@@ -70,7 +70,6 @@ class MLPEvaluator:
 
     def _compile(self, updates, learning_rate):
 
-
         q = ls.get_output(self._network, deterministic=False)
         deterministic_q = ls.get_output(self._network, deterministic=True)
 
@@ -79,7 +78,7 @@ class MLPEvaluator:
         nonterminal = self._inputs["Nonterminal"]
         q2 = self._inputs["Q2"]
 
-        target_q= tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
+        target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
         loss = squared_error(q, target_q).mean()
         regularized_loss = loss
@@ -95,12 +94,13 @@ class MLPEvaluator:
         if self._misc_state_included:
             self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], q2, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], deterministic_q, mode=mode, name="eval_fn")
+            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], deterministic_q, mode=mode,
+                                             name="eval_fn")
         else:
             self._learn = theano.function([self._inputs["X"], q2, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
             self._evaluate = theano.function([self._inputs["X"]], deterministic_q, mode=mode, name="eval_fn")
-        # print "Theano functions compiled."
+            # print "Theano functions compiled."
 
     def learn(self, transitions):
         # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
