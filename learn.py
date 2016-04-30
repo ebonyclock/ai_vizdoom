@@ -21,7 +21,7 @@ else:
 savefile = None
 loadfile = None
 
-suffix = "_120_3l_g99"
+suffix = "_lr0.0001"
 
 savefile = "params/" + filename + "/skip" + str(skiprate) + suffix
 # loadfile = "params/" + filename + "/skip" + str(skiprate) + suffix
@@ -62,7 +62,7 @@ for p in get_all_param_values(engine.get_network()):
     print p.shape
 
 epochs = np.inf
-training_steps_per_epoch = 2000
+training_steps_per_epoch = 500
 test_episodes_per_epoch = 200
 test_frequency = 1
 overall_start = time()

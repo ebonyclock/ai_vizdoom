@@ -128,7 +128,7 @@ def create_cnn_evaluator(state_format, actions_number):
     cnn_args["state_format"] = state_format
     cnn_args["actions_number"] = actions_number
     cnn_args["updates"] = rmsprop
-    cnn_args["learning_rate"] = 0.001
+    cnn_args["learning_rate"] = 0.0001
     # cnn_args["max_q"] = 21
 
     network_args = dict(hidden_units=[1024], hidden_layers=1)
@@ -136,7 +136,7 @@ def create_cnn_evaluator(state_format, actions_number):
     network_args["pool_size"] = [(2, 2), (2, 2), (2, 2)]
     network_args["num_filters"] = [32, 32, 32]
     network_args["filter_size"] = [7, 5, 3]
-    network_args["dropout"] = False
+    # network_args["dropout"] = False
     # network_args["output_nonlin"] = None
     # network_args["output_nonlin"] = create_cutoff(2100)
     # network_args["hidden_nonlin"] = None
@@ -156,7 +156,7 @@ def engine_setup_health(game):
     engine_args["count_states"] = True
     engine_args["misc_scale"] = [0.01, 1 / 2100.0]
     engine_args["epsilon_decay_steps"] = 100000
-    engine_args["epsilon_decay_start_step"] = 30000
+    engine_args["epsilon_decay_start_step"] = 4000
     engine_args["batchsize"] = 64
-    engine_args["history_length"] = 4
+    #engine_args["history_length"] = 4
     return engine_args
