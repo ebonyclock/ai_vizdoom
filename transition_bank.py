@@ -84,3 +84,6 @@ class TransitionBank:
         self._r_buf[:] = self._r[indexes]
         self._nonterminal_buf[:] = self._nonterminal[indexes]
         return self._ret_dict
+
+    def get_size(self):
+        return self._size

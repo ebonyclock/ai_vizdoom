@@ -13,14 +13,14 @@ def relu_weights_initializer(alpha=0.01):
 
 
 class MLPEvaluator:
-    def __init__(self, state_format, actions_number, architecture=dict(), gamma=np.float32(0.99),
+    def __init__(self, state_format, actions_number, architecture=dict(), gamma=0.99,
                  updates=sgd, learning_rate=0.01):
 
         self._inputs = dict()
 
         self._loss_history = []
         self._misc_state_included = (state_format["s_misc"] > 0)
-        self._gamma = gamma
+        self._gamma = np.float64(gamma)
         if self._misc_state_included:
             self._inputs["X_misc"] = tensor.matrix("X_misc")
             self._misc_len = state_format["s_misc"]

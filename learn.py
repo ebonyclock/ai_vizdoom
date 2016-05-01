@@ -1,84 +1,77 @@
 #!/usr/bin/python
 
+import sys
 from time import time
 
 from tqdm import tqdm
-from vizdoom import *
 
-from common import *
-from qengine import *
-import sys
+from agents import *
+from util import *
 
-filename = "superhealth"
-config_file = filename + ".cfg"
-setup = engine_setup_health
+skiprate = 10
+epochs = np.inf
+training_steps_per_epoch = 5000
+test_episodes_per_epoch = 200
 
-
-if len(sys.argv)>1:
-    skiprate = int(sys.argv[1])
+if len(sys.argv) > 1:
+    loadfile = sys.argv[1]
 else:
-    skiprate = 4
-savefile = None
-loadfile = None
+    loadfile = None
 
-suffix = "_lr0.0001"
-
-savefile = "params/" + filename + "/skip" + str(skiprate) + suffix
-# loadfile = "params/" + filename + "/skip" + str(skiprate) + suffix
-
-
-results_savefile = "results/" + filename + "/skip" + str(skiprate) + suffix + ".res"
-if results_savefile:
-    results = dict()
-    results["epoch"] = []
-    results["time"] = []
-    results["overall_time"] = []
-    results["mean"] = []
-    results["std"] = []
-    results["max"] = []
-    results["min"] = []
-    results["epsilon"] = []
-    results["traing_episodes_finished"] = []
-
-game = DoomGame()
-game.load_config("common.cfg")
-game.load_config(config_file)
-# game.set_doom_skill(0)
-
-# game.clear_available_game_variables()
-print "Initializing DOOM ..."
-game.init()
-print "DOOM initialized."
-
+# improve this
 if loadfile:
+    game = initialize_doom("superhealth.cfg")
     engine = QEngine.load(game, loadfile)
 else:
-    engine_args = setup(game)
-    engine_args["skiprate"] = skiprate
-    engine = QEngine(**engine_args)
+    game, engine = setup_superhealth()
+
+filename = engine.name
+
+savefile = "params/" + engine.name
+
+results_loadfile = None
+results_savefile = "results/" + engine.name + ".res"
+# results_loadfile = "results/"+engine.name+".res"
+
+results = None
+epoch = 0
+if results_loadfile is not None:
+    results = pickle.load(open(results_loadfile, "r"))
+    epoch = results["epoch"][-1] + 1
+else:
+    if results_savefile:
+        results = dict()
+        results["epoch"] = []
+        results["time"] = []
+        results["overall_time"] = []
+        results["mean"] = []
+        results["std"] = []
+        results["max"] = []
+        results["min"] = []
+        results["epsilon"] = []
+        results["training_episodes_finished"] = []
+        results["setup"] = engine.setup
 
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape
 
-epochs = np.inf
-training_steps_per_epoch = 2000
-test_episodes_per_epoch = 200
 test_frequency = 1
 overall_start = time()
-
+if len(results["time"]) > 0:
+    overall_start -= results["overall_time"][-1]
 # Training starts here!
 print
-epoch = 0
+
 while epoch < epochs:
     print "\nEpoch", epoch
     train_time = 0
+    train_episodes_finished = 0
     if training_steps_per_epoch > 0:
         rewards = []
 
         start = time()
         engine.new_episode(update_state=True)
-        train_episodes_finished = 0
         print "\nTraining ..."
         for step in tqdm(range(training_steps_per_epoch)):
             if game.is_episode_finished():
@@ -134,7 +127,7 @@ while epoch < epochs:
         results["max"].append(rewards.max())
         results["min"].append(rewards.min())
         results["epsilon"].append(engine.get_epsilon())
-        results["traing_episodes_finished"].append(train_episodes_finished)
+        results["training_episodes_finished"].append(train_episodes_finished)
 
         res_f = open(results_savefile, 'w')
         pickle.dump(results, res_f)

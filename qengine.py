@@ -3,14 +3,13 @@ import pickle
 import random
 from random import choice
 from time import sleep
+from vizdoom import *
 
 import cv2
-import numpy as np
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
-from vizdoom import *
-from evaluators import *
 
+from evaluators import *
 from transition_bank import TransitionBank
 
 
@@ -22,31 +21,33 @@ def default_actions_generator(the_game):
     return actions
 
 
-# TODO get rid af actions_generator
-# TODO to something with loading and saving the network
 class QEngine:
     def __init__(self, **kwargs):
-        self._qengine_args = kwargs
+        self.setup = kwargs
         self._initialize(**kwargs)
         kwargs["game"] = None
 
     def _prepare_for_save(self):
-        self._qengine_args["epsilon"] = self._epsilon
-        self._qengine_args["steps"] = self._steps
-        self._qengine_args["skiprate"] = self._skiprate
+        self.setup["epsilon"] = self._epsilon
+        self.setup["steps"] = self._steps
+        self.setup["skiprate"] = self._skiprate
 
-    def _initialize(self, game,  network_args, history_length=1, batchsize=64,
+    def _initialize(self, game, network_args, history_length=1, batchsize=64,
                     update_pattern=(4, 4),
                     bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
                     reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
-                    shaping_on=False, count_states=False, actions=None):
-        # Line that makes sublime collapse code correctly
-
+                    shaping_on=False, count_states=False, actions=None, name=None):
 
         if count_states is not None:
             self._count_states = bool(count_states)
-        self._max_reward = np.float32(max_reward)
+
+        if max_reward is not None:
+            self._max_reward = abs(np.float32(max_reward))
+        else:
+            self._max_reward = None
+
+        self.name = name
         self._reward_scale = reward_scale
         self._game = game
         self._batchsize = batchsize
@@ -78,9 +79,8 @@ class QEngine:
             self._channels *= self._history_length
 
         self._scale = float(reshaped_x) / game.get_screen_width()
-        y = int(game.get_screen_height()*self._scale)
+        y = int(game.get_screen_height() * self._scale)
         x = reshaped_x
-
 
         img_shape = [self._channels, y, x]
 
@@ -117,13 +117,13 @@ class QEngine:
         self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
 
         if "type" not in network_args.keys():
-            eval_type=None
+            eval_type = None
         else:
             eval_type = network_args["type"]
-            del(network_args["type"])
+            del (network_args["type"])
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
-        if eval_type in ("cnn",None,""):
+        if eval_type in ("cnn", None, ""):
             self._evaluator = CNNEvaluator(**network_args)
         else:
             print "Unsupported evaluator type specified"
@@ -240,9 +240,11 @@ class QEngine:
             sr = np.float32(doom_fixed_to_double(self._game.get_game_variable(GameVariable.USER1)))
             r += sr - self._last_shaping_reward
             self._last_shaping_reward = sr
-        r = r * self._reward_scale
+
         if self._max_reward:
-            r = min(r, self._max_reward)
+            r = np.clip(r, -self._max_reward, self._max_reward)
+
+        r = r * self._reward_scale
 
         # update state s2 accordingly
         if self._game.is_episode_finished():
@@ -256,12 +258,12 @@ class QEngine:
             self._transitions.add_transition(s, a, s2, r)
 
         # Perform q-learning once for a while
-        if self._steps % self._update_pattern[0] == 0 and self._steps > self._batchsize:
+        if self._transitions.get_size() > self._batchsize and self._steps % self._update_pattern[0] == 0:
             for i in range(self._update_pattern[1]):
                 self.learn_batch()
 
     # Adds a transition to the bank.
-    def add_transition(self, s,  a, s2, r, terminal):
+    def add_transition(self, s, a, s2, r, terminal):
         self._transitions.add_transition(s, a, s2, r, terminal)
 
     def learn_batch(self):
@@ -310,6 +312,7 @@ class QEngine:
     def get_skiprate(self):
         return self._skiprate
 
+
     # Saves network weights to a file
     def save_params(self, filename, quiet=False):
         if not quiet:
@@ -341,10 +344,10 @@ class QEngine:
         qengine_args = params[0]
         network_params = params[1]
 
-        steps = qengine_args = qengine_args["steps"]
-        epsilon = qengine_args = qengine_args["epsilon"]
-        del(qengine_args["epsilon"])
-        del(qengine_args["steps"])
+        steps = qengine_args["steps"]
+        epsilon = qengine_args["epsilon"]
+        del (qengine_args["epsilon"])
+        del (qengine_args["steps"])
 
         qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
@@ -361,7 +364,7 @@ class QEngine:
             print "Saving qengine to " + filename + "..."
         self._prepare_for_save()
         network_params = get_all_param_values(self._evaluator.get_network())
-        params = [self._qengine_args, network_params]
+        params = [self.setup, network_params]
         pickle.dump(params, open(filename, "wb"))
         if not quiet:
             print "Saving finished."
