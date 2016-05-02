@@ -8,9 +8,9 @@ filename = "superhealth"
 loadfile = "params/superhealth/" + "vlad"
 config_file = "superhealth" + ".cfg"
 
-if len[sys.argv] > 1:
+if len(sys.argv) > 1:
     loadfile = sys.argv[1]
-    if len[sys.argv] > 2:
+    if len(sys.argv) > 2:
         config_file = sys.argv[2]
 
 game = DoomGame()
