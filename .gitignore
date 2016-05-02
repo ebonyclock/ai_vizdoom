@@ -11,7 +11,7 @@
 .idea
 
 params/*
-results/*
+*.res
 **.bak
 vizdoom
 vizdoom.ini

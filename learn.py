@@ -25,7 +25,7 @@ if loadfile:
 else:
     game, engine = setup_superhealth()
 
-filename = engine.name + "_eps0"
+filename = "superhealth/" +  engine.name + "_eps0"
 engine.set_epsilon(0)
 
 savefile = "params/" + filename
