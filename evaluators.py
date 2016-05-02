@@ -135,7 +135,8 @@ class MLPEvaluator:
 
     def get_mean_loss(self, clear=True):
         m = np.mean(self._loss_history)
-        self._loss_history = []
+        if clear:
+            self._loss_history = []
         return m
 
     def get_network(self):

@@ -16,7 +16,7 @@ test_episodes_per_epoch = 200
 if len(sys.argv) > 1:
     loadfile = sys.argv[1]
 else:
-    loadfile = None
+    loadfile = "params/superhealth/vlad"
 
 # improve this
 if loadfile:
@@ -25,12 +25,13 @@ if loadfile:
 else:
     game, engine = setup_superhealth()
 
-filename = engine.name
+filename = engine.name + "_eps0"
+engine.set_epsilon(0)
 
-savefile = "params/" + engine.name
+savefile = "params/" + filename
 
 results_loadfile = None
-results_savefile = "results/" + engine.name + ".res"
+results_savefile = "results/" + filename + ".res"
 # results_loadfile = "results/"+engine.name+".res"
 
 results = None
@@ -50,6 +51,7 @@ else:
         results["min"] = []
         results["epsilon"] = []
         results["training_episodes_finished"] = []
+        results["loss"] = []
         results["setup"] = engine.setup
 
 print "\nNetwork architecture:"
@@ -67,6 +69,7 @@ while epoch < epochs:
     print "\nEpoch", epoch
     train_time = 0
     train_episodes_finished = 0
+    mean_loss = 0
     if training_steps_per_epoch > 0:
         rewards = []
 

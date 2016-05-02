@@ -11,12 +11,12 @@ game.set_screen_resolution(ScreenResolution.RES_640X480)
 
 game.init()
 
-skiprate = 10
+skiprate = 0
 episodes = 20
 for i in range(episodes):
     game.new_episode()
     while not game.is_episode_finished():
-        game.advance_action(skiprate)
+        game.advance_action(skiprate + 1)
         print doom_fixed_to_double(game.get_game_variable(GameVariable.USER1))
         print game.get_last_action()
     print i + 1, "Reward:", game.get_total_reward()

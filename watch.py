@@ -1,10 +1,17 @@
 #!/usr/bin/python
 
+import sys
+
 from qengine import *
 
 filename = "superhealth"
-loadfile = "params/superhealth/" + "skip10_lr1e-06"
+loadfile = "params/superhealth/" + "vlad"
 config_file = "superhealth" + ".cfg"
+
+if len[sys.argv] > 1:
+    loadfile = sys.argv[1]
+    if len[sys.argv] > 2:
+        config_file = sys.argv[2]
 
 game = DoomGame()
 game.load_config("common.cfg")
@@ -19,6 +26,7 @@ game.init()
 print "\nDOOM initialized."
 
 engine = QEngine.load(game, loadfile)
+engine.set_skiprate(0)
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape

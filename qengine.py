@@ -137,8 +137,13 @@ class QEngine:
         if self._misc_state_included:
             misc_len = self._misc_len
             misc = self._misc_buffer
-            misc[0:misc_len - self._count_states] = np.float32(raw_state.game_variables)
-            misc[-1] = raw_state.number
+
+            if self._count_states:
+                misc[0:misc_len - 1] = np.float32(raw_state.game_variables)
+                misc[-1] = raw_state.number
+            else:
+                misc[0:misc_len ] = np.float32(raw_state.game_variables)
+
             if self._misc_scale is not None:
                 misc = misc * self._misc_scale
 
