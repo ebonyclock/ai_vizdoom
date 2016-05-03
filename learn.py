@@ -25,7 +25,7 @@ if loadfile:
 else:
     game, engine = setup_superhealth()
 
-filename = "superhealth/" +  engine.name + "_eps0"
+filename = "superhealth/" + engine.name + "_eps0"
 engine.set_epsilon(0)
 
 savefile = "params/" + filename
@@ -88,7 +88,7 @@ while epoch < epochs:
 
         print train_episodes_finished, "training episodes played."
         print "Training results:"
-        print engine.get_actions_stats(True)
+        print engine.get_actions_stats(clear=True).reshape([4, -1])
 
         mean_loss = engine._evaluator.get_mean_loss()
 
@@ -112,7 +112,7 @@ while epoch < epochs:
         end = time()
 
         print "Test results:"
-        print engine.get_actions_stats(clear=True, norm=False)
+        print engine.get_actions_stats(clear=True, norm=False).reshape([4, -1])
         rewards = np.array(rewards)
         print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
         print "t:", sec_to_str(end - start)

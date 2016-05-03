@@ -193,7 +193,6 @@ class QEngine:
 
     def make_step(self):
         self._update_state()
-        # current_state_COPY - copy is here cause tests go worse than training
         a = self._evaluator.best_action(self._current_state_copy())
         self._actions_stats[a] += 1
         self._game.make_action(self._actions[a], self._skiprate + 1)

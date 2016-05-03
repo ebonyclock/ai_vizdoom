@@ -26,7 +26,7 @@ game.init()
 print "\nDOOM initialized."
 
 engine = QEngine.load(game, loadfile)
-engine.set_skiprate(0)
+engine.set_skiprate(6)
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape
