@@ -13,10 +13,7 @@ epochs = np.inf
 training_steps_per_epoch = 5000
 test_episodes_per_epoch = 200
 
-if len(sys.argv) > 1:
-    loadfile = sys.argv[1]
-else:
-    loadfile = "params/superhealth/vlad"
+loadfile = "params/Vlad_eps0"
 
 # improve this
 if loadfile:
@@ -26,13 +23,12 @@ else:
     game, engine = setup_superhealth()
 
 filename = "superhealth/" + engine.name + "_eps0"
-engine.set_epsilon(0)
 
-savefile = "params/" + filename
 
-results_loadfile = None
-results_savefile = "results/" + filename + ".res"
-# results_loadfile = "results/"+engine.name+".res"
+savefile = loadfile
+
+results_loadfile = "results/Vlad_eps0.res"
+results_savefile = results_loadfile
 
 results = None
 epoch = 0
