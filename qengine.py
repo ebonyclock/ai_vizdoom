@@ -37,7 +37,7 @@ class QEngine:
                     bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
                     reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
-                    shaping_on=False, count_states=False, actions=None, name=None):
+                    shaping_on=False, count_states=False, actions=None, name=None, type="cnn"):
 
         if count_states is not None:
             self._count_states = bool(count_states)
@@ -66,7 +66,7 @@ class QEngine:
 
         self.learning_mode = True
 
-        if actions == None:
+        if actions is None:
             self._actions = default_actions_generator(game)
         else:
             self._actions = actions
@@ -87,11 +87,11 @@ class QEngine:
         if self._scale == 1:
 
             def convert(img):
-                img = np.float32(img) / 255.0
+                img = img.astype(np.float32) / 255.0
                 return img
         else:
             def convert(img):
-                img = np.float32(img) / 255.0
+                img = img.astype(np.float32) / 255.0
                 new_image = np.ndarray([img.shape[0], y, x], dtype=np.float32)
                 for i in range(img.shape[0]):
                     new_image[i] = cv2.resize(img[i], (x, y))
@@ -116,15 +116,14 @@ class QEngine:
         state_format["s_misc"] = self._misc_len * self._history_length
         self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
 
-        if "type" not in network_args.keys():
-            eval_type = None
-        else:
-            eval_type = network_args["type"]
-            del (network_args["type"])
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
-        if eval_type in ("cnn", None, ""):
+        if type in ("cnn", None, ""):
             self._evaluator = CNNEvaluator(**network_args)
+        elif type == "cnn_mem":
+            self._evaluator = CNNEvaluator_mem(**network_args)
+        elif type == "mlp":
+            self._evaluator = MLPEvaluator(**network_args)
         else:
             print "Unsupported evaluator type specified"
 
@@ -142,7 +141,7 @@ class QEngine:
                 misc[0:misc_len - 1] = np.float32(raw_state.game_variables)
                 misc[-1] = raw_state.number
             else:
-                misc[0:misc_len ] = np.float32(raw_state.game_variables)
+                misc[0:misc_len] = np.float32(raw_state.game_variables)
 
             if self._misc_scale is not None:
                 misc = misc * self._misc_scale
@@ -315,7 +314,6 @@ class QEngine:
 
     def get_skiprate(self):
         return self._skiprate
-
 
     # Saves network weights to a file
     def save_params(self, filename, quiet=False):

@@ -8,27 +8,23 @@ from tqdm import tqdm
 from agents import *
 from util import *
 
-skiprate = 10
 epochs = np.inf
 training_steps_per_epoch = 5000
 test_episodes_per_epoch = 200
 
-loadfile = "params/Vlad_eps0"
 
+params_loadfile = None
+params_savefile = "params/memorytest"
+params_loadfile = params_savefile
+results_loadfile = None
+results_savefile = "results/memorytest.res"
+results_loadfile = results_savefile
 # improve this
-if loadfile:
+if params_loadfile:
     game = initialize_doom("superhealth.cfg")
-    engine = QEngine.load(game, loadfile)
+    engine = QEngine.load(game, params_loadfile)
 else:
-    game, engine = setup_superhealth()
-
-filename = "superhealth/" + engine.name + "_eps0"
-
-
-savefile = loadfile
-
-results_loadfile = "results/Vlad_eps0.res"
-results_savefile = results_loadfile
+    game, engine = setup_vlad_memorytest()
 
 results = None
 epoch = 0
@@ -135,8 +131,8 @@ while epoch < epochs:
     epoch += 1
     print ""
 
-    if savefile:
-        engine.save(savefile)
+    if params_savefile:
+        engine.save(params_savefile)
 
     print "Elapsed time:", sec_to_str(overall_time)
     print "========================="
