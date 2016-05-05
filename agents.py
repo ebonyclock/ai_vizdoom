@@ -62,8 +62,8 @@ def setup_vlad_memorytest():
     cnn_args = dict()
     cnn_args["gamma"] = 1
     cnn_args["updates"] = rmsprop
-    cnn_args["learning_rate"] = 0.00005
-    cnn_args["type"] = "cnn_mem"
+    cnn_args["learning_rate"] = 0.00001
+
 
     # Architecture
     architecture = dict()
@@ -88,6 +88,7 @@ def setup_vlad_memorytest():
     engine_args["reshaped_x"] = 120
     engine_args["skiprate"] = 10
     engine_args["history_length"] = 4
+    engine_args["type"] = "cnn_mem"
 
     engine_args["name"] = "eVlad"
 
