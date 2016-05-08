@@ -8,11 +8,12 @@ from matplotlib import pyplot as plt
 
 mpl.style.use('bmh')
 
-max_len = 1000
+max_len = 104
 targets = None
 filename = sys.argv[1]
 if len(sys.argv) > 2:
     targets = sys.argv[2:]
+
 
 d = pickle.load(open(filename, "r"))
 

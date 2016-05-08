@@ -14,17 +14,17 @@ test_episodes_per_epoch = 200
 
 
 params_loadfile = None
-params_savefile = "params/memorytest"
-params_loadfile = params_savefile
+params_savefile = "basic"#params/bnw"
+#params_loadfile = "params/bnw"
 results_loadfile = None
-results_savefile = "results/memorytest.res"
-results_loadfile = results_savefile
-# improve this
+results_savefile = "basic.res"#results/bnw.res"
+#results_loadfile = "results/bnw.res"
+# TODO improve this
 if params_loadfile:
-    game = initialize_doom("superhealth.cfg")
+    game = initialize_doom("superhealth.cfg",True)
     engine = QEngine.load(game, params_loadfile)
 else:
-    game, engine = setup_vlad_memorytest()
+    game, engine = setup_basic()
 
 results = None
 epoch = 0

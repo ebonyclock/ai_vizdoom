@@ -14,7 +14,7 @@ def leaky_relu_weights_initializer(alpha=0.01):
 
 class MLPEvaluator:
     def __init__(self, state_format, actions_number, architecture=None, gamma=0.99,
-                 updates=sgd, learning_rate=0.01):
+                 updates=sgd, learning_rate=0.01, clip_loss=False):
 
         self._inputs = dict()
         if architecture is None:
@@ -48,7 +48,7 @@ class MLPEvaluator:
 
         self._initialize_network(**architecture)
         # print "Network initialized."
-        self._compile(updates, learning_rate)
+        self._compile(updates, learning_rate, clip_loss)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=(500), hidden_layers=1,
                             hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
@@ -71,7 +71,7 @@ class MLPEvaluator:
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
         self._network = network
 
-    def _compile(self, updates, learning_rate):
+    def _compile(self, updates, learning_rate, clip_loss):
 
         q = ls.get_output(self._network, deterministic=False)
         deterministic_q = ls.get_output(self._network, deterministic=True)
@@ -83,11 +83,14 @@ class MLPEvaluator:
 
         target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
-        loss = squared_error(q, target_q).mean()
-        regularized_loss = loss
+        if clip_loss:
+            loss = tensor.clip(squared_error(q, target_q), -1, 1).mean()
+        else:
+            loss = squared_error(q, target_q).mean()
+
         params = ls.get_all_params(self._network, trainable=True)
-        # TODO enable learning_rate change after compilation
-        updates = updates(regularized_loss, params, learning_rate)
+        # TODO enable learning_rate changing after compilation
+        updates = updates(loss, params, learning_rate)
 
         # print "Compiling Theano functions ..."
 
@@ -112,11 +115,12 @@ class MLPEvaluator:
         if self._misc_state_included:
             X_misc = transitions["s1_misc"]
             X2_misc = transitions["s2_misc"]
+            # TODO freezing here
             Q2 = np.max(self._evaluate(X2, X2_misc), axis=1)
         else:
+            # TODO freezing here
             Q2 = np.max(self._evaluate(X2), axis=1)
-            # DEBUG
-        # print Q2
+
         if self._misc_state_included:
             loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
         else:
@@ -163,7 +167,8 @@ class CNNEvaluator(MLPEvaluator):
         for i in range(conv_layers):
             network = ls.Conv2DLayer(network, num_filters=num_filters[i], filter_size=filter_size[i],
                                      nonlinearity=conv_nonlin, W=lasagne.init.GlorotNormal("relu"))
-            network = ls.MaxPool2DLayer(network, pool_size=pool_size[i])
+            if pool_size is not None:
+                network = ls.MaxPool2DLayer(network, pool_size=pool_size[i])
             if dropout:
                 network = lasagne.layers.dropout(network, p=0.5)
 
@@ -215,11 +220,14 @@ class CNNEvaluator_mem(MLPEvaluator):
                     w = networks[mem - 1].W
                     b = networks[mem - 1].b
                 networks[mem] = ls.Conv2DLayer(networks[mem], num_filters=num_filters[i], filter_size=filter_size[i],
+
                                                nonlinearity=conv_nonlin, W=w, b=b)
-            for mem in range(memory):
-                networks[mem] = ls.MaxPool2DLayer(networks[mem], pool_size=pool_size[i])
-                if dropout:
-                    networks[mem] = lasagne.layers.dropout(networks[mem], p=0.5)
+            if dropout or pool_size is not None:
+                for mem in range(memory):
+                    if pool_size is not None:
+                        networks[mem] = ls.MaxPool2DLayer(networks[mem], pool_size=pool_size[i])
+                    if dropout:
+                        networks[mem] = lasagne.layers.dropout(networks[mem], p=0.5)
 
         for mem in range(memory):
             if mem == 0:
