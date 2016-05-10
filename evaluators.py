@@ -14,7 +14,7 @@ def leaky_relu_weights_initializer(alpha=0.01):
 
 class MLPEvaluator:
     def __init__(self, state_format, actions_number, architecture=None, gamma=0.99,
-                 updates=sgd, learning_rate=0.01, clip_loss=False):
+                 updates=sgd, learning_rate=0.01):
 
         self._inputs = dict()
         if architecture is None:
@@ -48,7 +48,7 @@ class MLPEvaluator:
 
         self._initialize_network(**architecture)
         # print "Network initialized."
-        self._compile(updates, learning_rate, clip_loss)
+        self._compile(updates, learning_rate)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, hidden_units=(500), hidden_layers=1,
                             hidden_nonlin=leaky_rectify, output_nonlin=tanh, updates=sgd):
@@ -71,7 +71,8 @@ class MLPEvaluator:
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
         self._network = network
 
-    def _compile(self, updates, learning_rate, clip_loss):
+
+    def _compile(self, updates, learning_rate):
 
         q = ls.get_output(self._network, deterministic=False)
         deterministic_q = ls.get_output(self._network, deterministic=True)
@@ -83,10 +84,8 @@ class MLPEvaluator:
 
         target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
-        if clip_loss:
-            loss = tensor.clip(squared_error(q, target_q), -1, 1).mean()
-        else:
-            loss = squared_error(q, target_q).mean()
+
+        loss = squared_error(q, target_q).mean()
 
         params = ls.get_all_params(self._network, trainable=True)
         # TODO enable learning_rate changing after compilation

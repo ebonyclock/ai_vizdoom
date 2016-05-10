@@ -223,8 +223,7 @@ class QEngine:
         self._steps += 1
         # epsilon decay
         if self._steps > self._epsilon_decay_start and self._epsilon > self._end_epsilon:
-            self._epsilon -= self._epsilon_decay_stride
-            self._epsilon = max(self._epsilon, 0)
+            self._epsilon = max(self._epsilon - self._epsilon_decay_stride, 0)
 
             # Copy because state will be changed in a second
         s = self._current_state_copy();
@@ -247,7 +246,7 @@ class QEngine:
         if self._max_reward:
             r = np.clip(r, -self._max_reward, self._max_reward)
 
-        r = r * self._reward_scale
+        r *= self._reward_scale
 
         # update state s2 accordingly
         if self._game.is_episode_finished():
@@ -357,7 +356,6 @@ class QEngine:
         if not quiet:
             print "Loading finished."
             qengine._steps = steps
-            qengine._epsilon = epsilon
         return qengine
 
     # Saves the whole engine with params to a file
