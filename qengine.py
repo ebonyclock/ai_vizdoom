@@ -37,7 +37,8 @@ class QEngine:
                     bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
                     epsilon_decay_steps=100000,
                     reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
-                    shaping_on=False, count_states=False, actions=None, name=None, type="cnn"):
+                    shaping_on=False, count_states=False, actions=None, name=None, type="cnn", frozen_steps=1000,
+                    freeze=False, last_n_actions = 0):
 
         if count_states is not None:
             self._count_states = bool(count_states)
@@ -61,6 +62,10 @@ class QEngine:
         self._skiprate = max(skiprate, 0)
         self._shaping_on = shaping_on
         self._steps = 0
+        self._frozen_steps = frozen_steps
+        self._freeze = freeze
+        self._last_n_actions = last_n_actions
+
         if self._shaping_on:
             self._last_shaping_reward = 0
 
@@ -72,6 +77,7 @@ class QEngine:
             self._actions = actions
         self._actions_num = len(self._actions)
         self._actions_stats = np.zeros([self._actions_num], np.int)
+
 
         # change img_shape according to the history size
         self._channels = game.get_screen_channels()
@@ -118,6 +124,8 @@ class QEngine:
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
+        network_args["freeze"] = freeze
+
         if type in ("cnn", None, ""):
             self._evaluator = CNNEvaluator(**network_args)
         elif type == "cnn_mem":
@@ -192,6 +200,7 @@ class QEngine:
 
     def make_step(self):
         self._update_state()
+        # TODO Check if not making the copy still works
         a = self._evaluator.best_action(self._current_state_copy())
         self._actions_stats[a] += 1
         self._game.make_action(self._actions[a], self._skiprate + 1)
@@ -202,16 +211,13 @@ class QEngine:
         self._actions_stats[a] += 1
 
         self._game.set_action(self._actions[a])
+
+        # TODO place everything in the loop?
         for i in range(self._skiprate):
             self._game.advance_action(1, False, True)
             sleep(sleep_time)
         self._game.advance_action()
         sleep(sleep_time)
-
-    # Updates the state and returns the best action.
-    def best_action(self, state):
-        self._update_state()
-        return self._actions[self._evaluator.best_action(self._current_state())]
 
     # Makes a random action without state update.
     def make_random_step(self):
@@ -264,6 +270,11 @@ class QEngine:
             for i in range(self._update_pattern[1]):
                 self.learn_batch()
 
+        # Melt the network sometimes
+        if self._freeze:
+            if (self._steps + 1) % self._frozen_steps:
+                self._evaluator.melt()
+
     # Adds a transition to the bank.
     def add_transition(self, s, a, s2, r, terminal):
         self._transitions.add_transition(s, a, s2, r, terminal)
@@ -272,15 +283,10 @@ class QEngine:
         self._evaluator.learn(self._transitions.get_sample())
 
     # Runs a single episode in current mode. It ignores the mode if learn==true/false
-    def run_episode(self, learn=None):
+    def run_episode(self):
         self.new_episode()
-        if self.learning_mode and learn != False:
-            self._update_state()
-            while not self._game.is_episode_finished():
-                self.make_learning_step()
-        else:
-            while not self._game.is_episode_finished():
-                self.make_step()
+        while not self._game.is_episode_finished():
+            self.make_step()
 
         return np.float32(self._game.get_total_reward())
 
@@ -303,13 +309,13 @@ class QEngine:
         return self._epsilon
 
     def get_network(self):
-        return self._evaluator.get_network()
+        return self._evaluator.network
 
     def set_epsilon(self, eps):
         self._epsilon = eps
 
     def set_skiprate(self, skiprate):
-        self._skiprate = skiprate
+        self._skiprate = max(skiprate,0)
 
     def get_skiprate(self):
         return self._skiprate
@@ -319,7 +325,7 @@ class QEngine:
         if not quiet:
             print "Saving network weights to " + filename + "..."
         self._prepare_for_save()
-        params = get_all_param_values(self._evaluator.get_network())
+        params = get_all_param_values(self._evaluator.network)
         pickle.dump(params, open(filename, "wb"))
         if not quiet:
             print "Saving finished."
@@ -329,7 +335,9 @@ class QEngine:
         if not quiet:
             print "Loading network weights from " + filename + "..."
         params = pickle.load(open(filename, "rb"))
-        set_all_param_values(self._evaluator.get_network(), params)
+        set_all_param_values(self._evaluator.network, params)
+        if self._freeze:
+            set_all_param_values(self._evaluator.frozen_network, params)
         if not quiet:
             print "Loading finished."
 
@@ -351,11 +359,16 @@ class QEngine:
         del (qengine_args["steps"])
 
         qengine_args["game"] = game
+
         qengine = QEngine(**qengine_args)
-        set_all_param_values(qengine._evaluator.get_network(), network_params)
+        set_all_param_values(qengine._evaluator.network, network_params)
+        if qengine._freeze:
+            set_all_param_values(qengine._evaluator.frozen_network, network_params)
+
         if not quiet:
             print "Loading finished."
             qengine._steps = steps
+            qengine._epsilon = epsilon
         return qengine
 
     # Saves the whole engine with params to a file
@@ -363,7 +376,7 @@ class QEngine:
         if not quiet:
             print "Saving qengine to " + filename + "..."
         self._prepare_for_save()
-        network_params = get_all_param_values(self._evaluator.get_network())
+        network_params = get_all_param_values(self._evaluator.network)
         params = [self.setup, network_params]
         pickle.dump(params, open(filename, "wb"))
         if not quiet:

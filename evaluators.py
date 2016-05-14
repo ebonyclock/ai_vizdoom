@@ -9,13 +9,12 @@ from lasagne.updates import sgd
 
 
 def leaky_relu_weights_initializer(alpha=0.01):
-    return lasagne.init.GlorotNormal(gain=np.sqrt(2 / (1 + alpha ** 2)))
+    return lasagne.init.GlorotUniform(gain=np.sqrt(2 / (1 + alpha ** 2)))
 
 
 class MLPEvaluator:
     def __init__(self, state_format, actions_number, architecture=None, gamma=0.99,
-                 updates=sgd, learning_rate=0.01):
-
+                 updates=sgd, learning_rate=0.01, freeze=False):
         self._inputs = dict()
         if architecture is None:
             architecture = dict()
@@ -34,6 +33,7 @@ class MLPEvaluator:
         self._inputs["A"] = tensor.vector("Action", dtype="int32")
         self._inputs["R"] = tensor.vector("Reward")
         self._inputs["Nonterminal"] = tensor.vector("Nonterminal", dtype="int8")
+        self._freeze = freeze
 
         network_image_input_shape = list(state_format["s_img"])
         network_image_input_shape.insert(0, None)
@@ -46,7 +46,9 @@ class MLPEvaluator:
         architecture["misc_len"] = self._misc_len
         architecture["output_size"] = actions_number
 
-        self._initialize_network(**architecture)
+        self.network = self._initialize_network(**architecture)
+        if self._freeze:
+            self.frozen_network = self._initialize_network(**architecture)
         # print "Network initialized."
         self._compile(updates, learning_rate)
 
@@ -58,7 +60,7 @@ class MLPEvaluator:
         # hidden layers
         for i in range(hidden_layers):
             network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin,
-                                    W=lasagne.init.GlorotNormal("relu"))
+                                    W=lasagne.init.GlorotUniform("relu"))
 
         # misc layer and merge with rest of the network
         if self._misc_state_included:
@@ -69,13 +71,14 @@ class MLPEvaluator:
 
         # output layer
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
-        self._network = network
-
+        return network
 
     def _compile(self, updates, learning_rate):
 
-        q = ls.get_output(self._network, deterministic=False)
-        deterministic_q = ls.get_output(self._network, deterministic=True)
+        q = ls.get_output(self.network, deterministic=False)
+        deterministic_q = ls.get_output(self.network, deterministic=True)
+        if self._freeze:
+            frozen_q = ls.get_output(self.frozen_network, deterministic=True)
 
         a = self._inputs["A"]
         r = self._inputs["R"]
@@ -84,10 +87,9 @@ class MLPEvaluator:
 
         target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
-
         loss = squared_error(q, target_q).mean()
 
-        params = ls.get_all_params(self._network, trainable=True)
+        params = ls.get_all_params(self.network, trainable=True)
         # TODO enable learning_rate changing after compilation
         updates = updates(loss, params, learning_rate)
 
@@ -101,11 +103,19 @@ class MLPEvaluator:
                                           updates=updates, mode=mode, name="learn_fn")
             self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], deterministic_q, mode=mode,
                                              name="eval_fn")
+            if self._freeze:
+                self._q2_evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], frozen_q, mode=mode,
+                                           name="frozen_eval_fn")
+            else:
+                self._q2_evaluate = self._evaluate
         else:
             self._learn = theano.function([self._inputs["X"], q2, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
             self._evaluate = theano.function([self._inputs["X"]], deterministic_q, mode=mode, name="eval_fn")
-            # print "Theano functions compiled."
+            if self._freeze:
+                self._q2_evaluate = theano.function([self._inputs["X"]], frozen_q, mode=mode, name="frozen_eval_fn")
+            else:
+                self._q2_evaluate = self._evaluate
 
     def learn(self, transitions):
         # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
@@ -114,12 +124,10 @@ class MLPEvaluator:
         if self._misc_state_included:
             X_misc = transitions["s1_misc"]
             X2_misc = transitions["s2_misc"]
-            # TODO freezing here
-            Q2 = np.max(self._evaluate(X2, X2_misc), axis=1)
+            Q2 = np.max(self._q2_evaluate(X2, X2_misc), axis=1)
         else:
-            # TODO freezing here
-            Q2 = np.max(self._evaluate(X2), axis=1)
-
+            Q2 = np.max(self._q2_evaluate(X2), axis=1)
+        return
         if self._misc_state_included:
             loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
         else:
@@ -146,17 +154,20 @@ class MLPEvaluator:
         return m
 
     def get_network(self):
-        return self._network
+        return self.network
+
+    def melt(self):
+        ls.set_all_param_values(self.frozen_network, ls.get_all_param_values(self.network))
 
 
 class CNNEvaluator(MLPEvaluator):
     def __init__(self, **kwargs):
         MLPEvaluator.__init__(self, **kwargs)
 
-    def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=2, num_filters=[32, 32],
-                            filter_size=[(5, 5), (5, 5)], hidden_units=[256], pool_size=[(2, 2), (2, 2)],
+    def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=2, num_filters=(32, 32),
+                            filter_size=((5, 5), (5, 5)), hidden_units=(256), pool_size=((2, 2), (2, 2)),
                             hidden_layers=1, conv_nonlin=rectify,
-                            hidden_nonlin=leaky_rectify, output_nonlin=None, dropout=False):
+                            hidden_nonlin=rectify, output_nonlin=None, dropout=False):
 
         # print "Initializing CNN ..."
         # image input layer
@@ -165,7 +176,8 @@ class CNNEvaluator(MLPEvaluator):
         # convolution and pooling layers
         for i in range(conv_layers):
             network = ls.Conv2DLayer(network, num_filters=num_filters[i], filter_size=filter_size[i],
-                                     nonlinearity=conv_nonlin, W=lasagne.init.GlorotNormal("relu"))
+                                     nonlinearity=conv_nonlin, W=lasagne.init.GlorotUniform("relu"),
+                                     b=lasagne.init.Constant(.1))
             if pool_size is not None:
                 network = ls.MaxPool2DLayer(network, pool_size=pool_size[i])
             if dropout:
@@ -182,12 +194,12 @@ class CNNEvaluator(MLPEvaluator):
             # dense layers
         for i in range(hidden_layers):
             network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin,
-                                    W=leaky_relu_weights_initializer())
+                                    W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(.1))
             if dropout:
                 network = lasagne.layers.dropout(network, p=0.5)
         # output layer
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
-        self._network = network
+        return network
 
 
 class CNNEvaluator_mem(MLPEvaluator):
@@ -198,7 +210,7 @@ class CNNEvaluator_mem(MLPEvaluator):
                             filter_size=((5, 5), (5, 5), (5, 5)), hidden_units=(1024, 1024),
                             pool_size=((2, 2), (2, 2), (2, 2)),
                             hidden_layers=2, conv_nonlin=rectify,
-                            hidden_nonlin=leaky_rectify, output_nonlin=None, dropout=False, memory=1):
+                            hidden_nonlin=rectify, output_nonlin=None, dropout=False, memory=1):
 
         memory = max(1, memory)
         channels_per_cell = img_input_shape[1] / memory
@@ -213,8 +225,8 @@ class CNNEvaluator_mem(MLPEvaluator):
         for i in range(conv_layers):
             for mem in range(memory):
                 if mem == 0:
-                    w = lasagne.init.GlorotNormal("relu")
-                    b = lasagne.init.Constant(0.0)
+                    w = lasagne.init.GlorotUniform()
+                    b = lasagne.init.Constant(.1)
                 else:
                     w = networks[mem - 1].W
                     b = networks[mem - 1].b
@@ -230,8 +242,8 @@ class CNNEvaluator_mem(MLPEvaluator):
 
         for mem in range(memory):
             if mem == 0:
-                w = leaky_relu_weights_initializer()
-                b = lasagne.init.Constant(0.0)
+                w = lasagne.init.GlorotUniform()
+                b = lasagne.init.Constant(0.1)
             else:
                 w = networks[mem - 1].W
                 b = networks[mem - 1].b
@@ -248,9 +260,9 @@ class CNNEvaluator_mem(MLPEvaluator):
 
         for i in range(hidden_layers - 1):
             network = ls.DenseLayer(network, hidden_units[i + 1], nonlinearity=hidden_nonlin,
-                                    W=leaky_relu_weights_initializer())
+                                    W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.1))
             if dropout:
                 network = lasagne.layers.dropout(network, p=0.5)
 
         network = ls.DenseLayer(network, output_size, nonlinearity=output_nonlin)
-        self._network = network
+        return network

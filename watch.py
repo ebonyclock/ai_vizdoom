@@ -4,7 +4,6 @@ import sys
 
 from qengine import *
 
-filename = "superhealth"
 agent_loadfile = "params/superhealth/" + "vlad"
 config_file = "superhealth" + ".cfg"
 
@@ -19,6 +18,7 @@ game.load_config(config_file)
 
 game.set_window_visible(True)
 game.set_screen_resolution(ScreenResolution.RES_640X480)
+game.set_screen_format(ScreenFormat.GRAY8)
 # game.set_render_crosshair(True)
 
 print "Initializing DOOM ..."

@@ -14,17 +14,23 @@ test_episodes_per_epoch = 200
 
 
 params_loadfile = None
-params_savefile = "basic"#params/bnw"
-#params_loadfile = "params/bnw"
+params_savefile = None
 results_loadfile = None
-results_savefile = "basic.res"#results/bnw.res"
-#results_loadfile = "results/bnw.res"
+results_savefile = None
+
+
+params_savefile = "params/vlad_predict"
+params_loadfile = "params/vlad_predict"
+results_savefile = "results/vlad_predict.res"
+results_loadfile = "results/vlad_predict.res"
+
 # TODO improve this
 if params_loadfile:
-    game = initialize_doom("superhealth.cfg",True)
+    game = initialize_doom("config/predict_position.cfg",True)
     engine = QEngine.load(game, params_loadfile)
+    engine.set_skiprate(8)
 else:
-    game, engine = setup_basic()
+    game, engine = setup_vlad_predict()
 
 results = None
 epoch = 0
@@ -32,7 +38,7 @@ if results_loadfile is not None:
     results = pickle.load(open(results_loadfile, "r"))
     epoch = results["epoch"][-1] + 1
 else:
-    if results_savefile:
+    if results_savefile is not None:
         results = dict()
         results["epoch"] = []
         results["time"] = []
@@ -52,7 +58,7 @@ for p in get_all_param_values(engine.get_network()):
 
 test_frequency = 1
 overall_start = time()
-if len(results["time"]) > 0:
+if results_loadfile and len(results["time"]) > 0:
     overall_start -= results["overall_time"][-1]
 # Training starts here!
 print
@@ -80,7 +86,7 @@ while epoch < epochs:
 
         print train_episodes_finished, "training episodes played."
         print "Training results:"
-        print engine.get_actions_stats(clear=True).reshape([4, -1])
+        print engine.get_actions_stats(clear=True).reshape([-1,4])
 
         mean_loss = engine._evaluator.get_mean_loss()
 
@@ -104,7 +110,7 @@ while epoch < epochs:
         end = time()
 
         print "Test results:"
-        print engine.get_actions_stats(clear=True, norm=False).reshape([4, -1])
+        print engine.get_actions_stats(clear=True, norm=False).reshape([-1, 4])
         rewards = np.array(rewards)
         print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
         print "t:", sec_to_str(end - start)
@@ -123,7 +129,7 @@ while epoch < epochs:
         results["min"].append(rewards.min())
         results["epsilon"].append(engine.get_epsilon())
         results["training_episodes_finished"].append(train_episodes_finished)
-
+        results["loss"].append(mean_loss)
         res_f = open(results_savefile, 'w')
         pickle.dump(results, res_f)
         res_f.close()
