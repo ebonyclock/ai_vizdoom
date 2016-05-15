@@ -1,7 +1,6 @@
 import itertools as it
 import pickle
 import random
-from random import choice
 from time import sleep
 from vizdoom import *
 
@@ -38,7 +37,7 @@ class QEngine:
                     epsilon_decay_steps=100000,
                     reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
                     shaping_on=False, count_states=False, actions=None, name=None, type="cnn", frozen_steps=1000,
-                    freeze=False, last_n_actions = 0):
+                    freeze=False, remember_n_actions=0):
 
         if count_states is not None:
             self._count_states = bool(count_states)
@@ -64,7 +63,7 @@ class QEngine:
         self._steps = 0
         self._frozen_steps = frozen_steps
         self._freeze = freeze
-        self._last_n_actions = last_n_actions
+        self._last_shaping_reward = 0
 
         if self._shaping_on:
             self._last_shaping_reward = 0
@@ -75,11 +74,13 @@ class QEngine:
             self._actions = default_actions_generator(game)
         else:
             self._actions = actions
+
         self._actions_num = len(self._actions)
         self._actions_stats = np.zeros([self._actions_num], np.int)
 
+        self._last_action_index = 0
 
-        # change img_shape according to the history size
+        # changes img_shape according to the history size
         self._channels = game.get_screen_channels()
         if self._history_length > 1:
             self._channels *= self._history_length
@@ -105,21 +106,32 @@ class QEngine:
 
         self._convert_image = convert
 
-        self._misc_len = game.get_available_game_variables_size() + self._count_states
-        if self._misc_len > 0:
+        single_state_misc_len = game.get_available_game_variables_size() + self._count_states
+        self._single_state_misc_len = single_state_misc_len
+        self._remember_n_actions = remember_n_actions
+        if remember_n_actions > 0:
+            self._remember_n_actions = remember_n_actions
+            self._action_len = len(self._actions[0])
+            self._last_n_actions = np.zeros([remember_n_actions * self._action_len], dtype=np.float32)
+            self._total_misc_len = single_state_misc_len * self._history_length + len(self._last_n_actions)
+        else:
+            self._total_misc_len = single_state_misc_len * self._history_length
+
+        if self._total_misc_len > 0:
             self._misc_state_included = True
-            self._current_misc_state = np.zeros(self._misc_len * self._history_length, dtype=np.float32)
-            self._misc_buffer = np.zeros(self._misc_len, dtype=np.float32)
-            if misc_scale is not None:
-                self._misc_scale = np.array(misc_scale, dtype=np.float32)
-            else:
-                self._misc_scale = None
+            self._current_misc_state = np.zeros(self._total_misc_len, dtype=np.float32)
+            if single_state_misc_len > 0:
+                self._state_misc_buffer = np.zeros(single_state_misc_len, dtype=np.float32)
+                if misc_scale is not None:
+                    self._misc_scale = np.array(misc_scale, dtype=np.float32)
+                else:
+                    self._misc_scale = None
         else:
             self._misc_state_included = False
 
         state_format = dict()
         state_format["s_img"] = img_shape
-        state_format["s_misc"] = self._misc_len * self._history_length
+        state_format["s_misc"] = self._total_misc_len
         self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
 
         network_args["state_format"] = state_format
@@ -129,6 +141,7 @@ class QEngine:
         if type in ("cnn", None, ""):
             self._evaluator = CNNEvaluator(**network_args)
         elif type == "cnn_mem":
+            network_args["architecture"]["memory"] = self._history_length
             self._evaluator = CNNEvaluator_mem(**network_args)
         elif type == "mlp":
             self._evaluator = MLPEvaluator(**network_args)
@@ -140,34 +153,39 @@ class QEngine:
     def _update_state(self):
         raw_state = self._game.get_state()
         img = self._convert_image(raw_state.image_buffer)
+        state_misc = None
 
-        if self._misc_state_included:
-            misc_len = self._misc_len
-            misc = self._misc_buffer
+        if self._single_state_misc_len > 0:
+            state_misc = self._state_misc_buffer
 
             if self._count_states:
-                misc[0:misc_len - 1] = np.float32(raw_state.game_variables)
-                misc[-1] = raw_state.number
+                state_misc[0:-1] = np.float32(raw_state.game_variables)
+                state_misc[-1] = raw_state.number
             else:
-                misc[0:misc_len] = np.float32(raw_state.game_variables)
+                state_misc[:] = np.float32(raw_state.game_variables)
 
             if self._misc_scale is not None:
-                misc = misc * self._misc_scale
+                state_misc = state_misc * self._misc_scale
 
         if self._history_length > 1:
             pure_channels = self._channels / self._history_length
             self._current_image_state[0:-pure_channels] = self._current_image_state[pure_channels:]
             self._current_image_state[-pure_channels:] = img
 
-            if self._misc_state_included:
-                border = (self._history_length - 1) * self._misc_len
-                self._current_misc_state[0:border] = self._current_misc_state[self._misc_len:]
-                self._current_misc_state[border:] = misc
+            if self._single_state_misc_len > 0:
+                self._current_misc_state = np.roll(self._current_misc_state, -len(state_misc))
+                a = len(self._current_misc_state)
+                self._current_misc_state[a - len(state_misc):a] = state_misc
 
         else:
             self._current_image_state[:] = img
-            if self._misc_state_included:
-                self._current_misc_state[:] = misc
+            if self._single_state_misc_len > 0:
+                self._current_misc_state[0:len(state_misc)] = state_misc
+
+        if self._remember_n_actions:
+            np.roll(self._last_n_actions, -self._action_len)
+            self._last_n_actions[-self._action_len:] = self._actions[self._last_action_index]
+            self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
 
     def new_episode(self, update_state=False):
         self._game.new_episode()
@@ -197,6 +215,8 @@ class QEngine:
         self._current_image_state.fill(0.0)
         if self._misc_state_included:
             self._current_misc_state.fill(0.0)
+            if self._remember_n_actions > 0:
+                self._last_n_actions.fill(0)
 
     def make_step(self):
         self._update_state()
@@ -204,6 +224,7 @@ class QEngine:
         a = self._evaluator.best_action(self._current_state_copy())
         self._actions_stats[a] += 1
         self._game.make_action(self._actions[a], self._skiprate + 1)
+        self._last_action_index = a
 
     def make_rendered_step(self, sleep_time=0):
         self._update_state()
@@ -211,17 +232,13 @@ class QEngine:
         self._actions_stats[a] += 1
 
         self._game.set_action(self._actions[a])
-
+        self._last_action_index = a
         # TODO place everything in the loop?
         for i in range(self._skiprate):
             self._game.advance_action(1, False, True)
             sleep(sleep_time)
         self._game.advance_action()
         sleep(sleep_time)
-
-    # Makes a random action without state update.
-    def make_random_step(self):
-        self._game.make_action(choice(self._actions), self._skiprate + 1)
 
     # Performs a learning step according to epsilon-greedy policy.
     # The step spans self._skiprate +1 actions.
@@ -242,6 +259,7 @@ class QEngine:
         self._actions_stats[a] += 1
 
         # make action and get the reward
+        self._last_action_index = a
         r = self._game.make_action(self._actions[a], self._skiprate + 1)
         r = np.float32(r)
         if self._shaping_on:
@@ -315,7 +333,7 @@ class QEngine:
         self._epsilon = eps
 
     def set_skiprate(self, skiprate):
-        self._skiprate = max(skiprate,0)
+        self._skiprate = max(skiprate, 0)
 
     def get_skiprate(self):
         return self._skiprate

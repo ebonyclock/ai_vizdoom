@@ -91,10 +91,11 @@ def vlad(engine_args):
     engine_args["name"] = "eVlad"
     return engine_args
 
-def setup_vlad_health():
+def vlad_health(remember_actions=0):
     engine_args = superhealth_engine_base(grayscale=True)
     engine_args = vlad(engine_args)
     engine_args["name"] = "eVlad_health"
+    engine_args["remember_n_actions"] = remember_actions
     return engine_args["game"], QEngine(**engine_args)
 
 def take_cover_engine_base(grayscale=True):
@@ -106,12 +107,13 @@ def take_cover_engine_base(grayscale=True):
     engine_args["count_states"] = True
     return engine_args
 
-def setup_vlad_take_cover():
+def vlad_take_cover(remember_actions=0):
 
     engine_args = take_cover_engine_base(grayscale=True)
     engine_args = vlad(engine_args)
     engine_args["name"] = "eVlad_cover"
     engine_args["skiprate"] = 4
+    engine_args["remember_n_actions"] = remember_actions
     return engine_args["game"], QEngine(**engine_args)
 
 def predict_engine_base(grayscale=True):
@@ -124,10 +126,49 @@ def predict_engine_base(grayscale=True):
     engine_args["count_states"] = False
     return engine_args
 
-def setup_vlad_predict():
+def vlad_predict(remember_actions = 0):
     engine_args = predict_engine_base(grayscale=True)
     engine_args = vlad(engine_args)
     engine_args["name"] = "eVlad_predict"
     engine_args["skiprate"] = 4
     engine_args["reshaped_x"] = 120
+    engine_args["remember_n_actions"] = remember_actions
+    return engine_args["game"], QEngine(**engine_args)
+
+def defend_the_line_base(grayscale=True):
+    game = initialize_doom("config/defend_the_line.cfg", grayscale)
+    engine_args = dict()
+    engine_args["game"] = game
+    #engine_args["reward_scale"] = 0.01
+    #engine_args["misc_scale"] = [0.01, 1 / 2100.0]
+    engine_args["batchsize"] = 64
+    engine_args["count_states"] = False
+    return engine_args
+
+def vlad_line(remember_actions = 0):
+    engine_args = defend_the_line_base(grayscale=True)
+    engine_args = vlad(engine_args)
+    engine_args["name"] = "eVlad_line"
+    engine_args["skiprate"] = 4
+    engine_args["reshaped_x"] = 120
+    engine_args["remember_n_actions"] = remember_actions
+    return engine_args["game"], QEngine(**engine_args)
+
+def defend_the_center_base(grayscale=True):
+    game = initialize_doom("config/defend_the_center.cfg", grayscale)
+    engine_args = dict()
+    engine_args["game"] = game
+    #engine_args["reward_scale"] = 0.01
+    engine_args["misc_scale"] = [1/26.0,0.01, 1 / 2100.0]
+    engine_args["batchsize"] = 64
+    engine_args["count_states"] = True
+    return engine_args
+
+def vlad_center(remember_actions = 0):
+    engine_args = defend_the_center_base(grayscale=True)
+    engine_args = vlad(engine_args)
+    engine_args["name"] = "eVlad_center"
+    engine_args["skiprate"] = 4
+    engine_args["reshaped_x"] = 120
+    engine_args["remember_n_actions"] = remember_actions
     return engine_args["game"], QEngine(**engine_args)

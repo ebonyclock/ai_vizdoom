@@ -26,13 +26,13 @@ game.init()
 print "\nDOOM initialized."
 
 engine = QEngine.load(game, agent_loadfile)
-engine.set_skiprate(6)
+engine.set_skiprate(4)
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape
 
 episode_sleep = 0.5
-action_sleep = 0.02
+action_sleep = 0.04
 
 episodes = 20
 for i in range(episodes):

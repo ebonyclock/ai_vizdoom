@@ -105,7 +105,7 @@ class MLPEvaluator:
                                              name="eval_fn")
             if self._freeze:
                 self._q2_evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], frozen_q, mode=mode,
-                                           name="frozen_eval_fn")
+                                                    name="frozen_eval_fn")
             else:
                 self._q2_evaluate = self._evaluate
         else:
@@ -118,7 +118,7 @@ class MLPEvaluator:
                 self._q2_evaluate = self._evaluate
 
     def learn(self, transitions):
-        # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t) 
+        # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t)
         X = transitions["s1_img"]
         X2 = transitions["s2_img"]
         if self._misc_state_included:
@@ -127,7 +127,7 @@ class MLPEvaluator:
             Q2 = np.max(self._q2_evaluate(X2, X2_misc), axis=1)
         else:
             Q2 = np.max(self._q2_evaluate(X2), axis=1)
-        return
+
         if self._misc_state_included:
             loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
         else:
@@ -207,19 +207,21 @@ class CNNEvaluator_mem(MLPEvaluator):
         MLPEvaluator.__init__(self, **kwargs)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=3, num_filters=(32, 32, 32),
-                            filter_size=((5, 5), (5, 5), (5, 5)), hidden_units=(1024, 1024),
+                            filter_size=((5, 5), (5, 5), (5, 5)), hidden_units=(1024),
                             pool_size=((2, 2), (2, 2), (2, 2)),
-                            hidden_layers=2, conv_nonlin=rectify,
-                            hidden_nonlin=rectify, output_nonlin=None, dropout=False, memory=1):
+                            hidden_layers=1, conv_nonlin=rectify,
+                            hidden_nonlin=rectify, output_nonlin=None, dropout=False, memory=1, merge_hidden=(512)):
 
         memory = max(1, memory)
         channels_per_cell = img_input_shape[1] / memory
         networks = []
-        img_input_shape[1] /= memory
+        shape = img_input_shape[0:4]
+        shape[1] /= memory
+
         for mem in range(memory):
             start_i = mem * channels_per_cell
             end_i = start_i + channels_per_cell
-            cell_input = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"][:, start_i:end_i])
+            cell_input = ls.InputLayer(shape=shape, input_var=self._inputs["X"][:, start_i:end_i])
             networks.append(cell_input)
 
         for i in range(conv_layers):
@@ -231,8 +233,8 @@ class CNNEvaluator_mem(MLPEvaluator):
                     w = networks[mem - 1].W
                     b = networks[mem - 1].b
                 networks[mem] = ls.Conv2DLayer(networks[mem], num_filters=num_filters[i], filter_size=filter_size[i],
-
                                                nonlinearity=conv_nonlin, W=w, b=b)
+
             if dropout or pool_size is not None:
                 for mem in range(memory):
                     if pool_size is not None:
@@ -248,7 +250,7 @@ class CNNEvaluator_mem(MLPEvaluator):
                 w = networks[mem - 1].W
                 b = networks[mem - 1].b
             networks[mem] = ls.FlattenLayer(networks[mem])
-            networks[mem] = ls.DenseLayer(networks[mem], hidden_units[0], nonlinearity=hidden_nonlin,
+            networks[mem] = ls.DenseLayer(networks[mem], merge_hidden, nonlinearity=hidden_nonlin,
                                           W=w, b=b)
 
         if self._misc_state_included:
@@ -258,8 +260,8 @@ class CNNEvaluator_mem(MLPEvaluator):
         else:
             network = ls.ConcatLayer(networks)
 
-        for i in range(hidden_layers - 1):
-            network = ls.DenseLayer(network, hidden_units[i + 1], nonlinearity=hidden_nonlin,
+        for i in range(hidden_layers):
+            network = ls.DenseLayer(network, hidden_units[i], nonlinearity=hidden_nonlin,
                                     W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.1))
             if dropout:
                 network = lasagne.layers.dropout(network, p=0.5)

@@ -18,19 +18,28 @@ params_savefile = None
 results_loadfile = None
 results_savefile = None
 
+config_loadfile = None
+setup = vlad_center
+remember_actions = 0
+params_savefile = "params/vlad_center"
+#params_loadfile = "params/vlad_cover_2"
+results_savefile = "results/vlad_center.res"
+#results_loadfile = "results/vlad_cover_2.res"
 
-params_savefile = "params/vlad_predict"
-params_loadfile = "params/vlad_predict"
-results_savefile = "results/vlad_predict.res"
-results_loadfile = "results/vlad_predict.res"
+if len(sys.argv)>3:
+    params_loadfile = sys.argv[1]
+    results_loadfile = sys.argv[2]
+    config_loadfile = sys.argv[3]
+    params_savefile = params_loadfile
+    results_savefile = results_loadfile
 
 # TODO improve this
 if params_loadfile:
-    game = initialize_doom("config/predict_position.cfg",True)
+    game = initialize_doom(config_loadfile,True)
     engine = QEngine.load(game, params_loadfile)
     engine.set_skiprate(8)
 else:
-    game, engine = setup_vlad_predict()
+    game, engine = setup(remember_actions)
 
 results = None
 epoch = 0
