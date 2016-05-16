@@ -85,6 +85,7 @@ class MLPEvaluator:
         nonterminal = self._inputs["Nonterminal"]
         q2 = self._inputs["Q2"]
 
+        # TODO move r + ... out and check ig it's faster
         target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
         loss = squared_error(q, target_q).mean()
@@ -139,6 +140,7 @@ class MLPEvaluator:
         if self._misc_state_included:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape),
                                    state[1].reshape(1, self._misc_len))
+            # TODO Check if it's correct
             a = np.argmax(qvals)
             # DEBUG
             # print np.max(qvals)

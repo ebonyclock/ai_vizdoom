@@ -20,11 +20,11 @@ results_savefile = None
 
 config_loadfile = None
 setup = vlad_center
-remember_actions = 0
-params_savefile = "params/vlad_center"
-#params_loadfile = "params/vlad_cover_2"
-results_savefile = "results/vlad_center.res"
-#results_loadfile = "results/vlad_cover_2.res"
+remember_actions = 4
+params_savefile = "params/vlad_center_4a"
+#params_loadfile = "params/vlad_center"
+results_savefile = "results/vlad_center_4a.res"
+#results_loadfile = "results/vlad_center.res"
 
 if len(sys.argv)>3:
     params_loadfile = sys.argv[1]

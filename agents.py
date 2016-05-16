@@ -171,4 +171,5 @@ def vlad_center(remember_actions = 0):
     engine_args["skiprate"] = 4
     engine_args["reshaped_x"] = 120
     engine_args["remember_n_actions"] = remember_actions
+    #engine_args["network_args"]["learning_rate"] = 0.00025
     return engine_args["game"], QEngine(**engine_args)

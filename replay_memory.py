@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 
-class TransitionBank:
+class ReplayMemory:
     def __init__(self, format, capacity=10000, batch_size=40):
         sim_shape = list(format["s_img"])
         sim_shape.insert(0, capacity)

@@ -32,7 +32,7 @@ for p in get_all_param_values(engine.get_network()):
     print p.shape
 
 episode_sleep = 0.5
-action_sleep = 0.04
+action_sleep = 0.02
 
 episodes = 20
 for i in range(episodes):

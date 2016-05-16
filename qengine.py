@@ -9,10 +9,10 @@ from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
 
 from evaluators import *
-from transition_bank import TransitionBank
+from replay_memory import ReplayMemory
 
 
-def default_actions_generator(the_game):
+def generate_default_actions(the_game):
     n = the_game.get_available_buttons_size()
     actions = []
     for perm in it.product([0, 1], repeat=n):
@@ -63,7 +63,6 @@ class QEngine:
         self._steps = 0
         self._frozen_steps = frozen_steps
         self._freeze = freeze
-        self._last_shaping_reward = 0
 
         if self._shaping_on:
             self._last_shaping_reward = 0
@@ -71,14 +70,12 @@ class QEngine:
         self.learning_mode = True
 
         if actions is None:
-            self._actions = default_actions_generator(game)
+            self._actions = generate_default_actions(game)
         else:
             self._actions = actions
 
         self._actions_num = len(self._actions)
         self._actions_stats = np.zeros([self._actions_num], np.int)
-
-        self._last_action_index = 0
 
         # changes img_shape according to the history size
         self._channels = game.get_screen_channels()
@@ -114,6 +111,7 @@ class QEngine:
             self._action_len = len(self._actions[0])
             self._last_n_actions = np.zeros([remember_n_actions * self._action_len], dtype=np.float32)
             self._total_misc_len = single_state_misc_len * self._history_length + len(self._last_n_actions)
+            self._last_action_index = 0
         else:
             self._total_misc_len = single_state_misc_len * self._history_length
 
@@ -132,7 +130,7 @@ class QEngine:
         state_format = dict()
         state_format["s_img"] = img_shape
         state_format["s_misc"] = self._total_misc_len
-        self._transitions = TransitionBank(state_format, bank_capacity, batchsize)
+        self._transitions = ReplayMemory(state_format, bank_capacity, batchsize)
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
