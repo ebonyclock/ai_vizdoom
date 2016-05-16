@@ -17,4 +17,6 @@ results/*
 **.bak
 vizdoom
 vizdoom.ini
-
+wads
+config
+show_filters_rgb.py
