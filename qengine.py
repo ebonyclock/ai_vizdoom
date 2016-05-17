@@ -224,14 +224,13 @@ class QEngine:
         self._game.make_action(self._actions[a], self._skiprate + 1)
         self._last_action_index = a
 
-    def make_rendered_step(self, sleep_time=0):
+    def make_sleep_step(self, sleep_time=1/35.0):
         self._update_state()
         a = self._evaluator.best_action(self._current_state_copy())
         self._actions_stats[a] += 1
 
         self._game.set_action(self._actions[a])
         self._last_action_index = a
-        # TODO place everything in the loop?
         for i in range(self._skiprate):
             self._game.advance_action(1, False, True)
             sleep(sleep_time)
@@ -299,10 +298,14 @@ class QEngine:
         self._evaluator.learn(self._transitions.get_sample())
 
     # Runs a single episode in current mode. It ignores the mode if learn==true/false
-    def run_episode(self):
+    def run_episode(self, sleep_time=0):
         self.new_episode()
-        while not self._game.is_episode_finished():
-            self.make_step()
+        if sleep_time==0:
+            while not self._game.is_episode_finished():
+                self.make_step()
+        else:
+            while not self._game.is_episode_finished():
+                self.make_sleep_step(sleep_time)
 
         return np.float32(self._game.get_total_reward())
 
