@@ -82,9 +82,9 @@ class MLPEvaluator:
         q2 = self._inputs["Q2"]
 
         # TODO move r + ... out and check ig it's faster
-        target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
+        #target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
 
-        loss = squared_error(q, target_q).mean()
+        loss = squared_error(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2).mean()
 
         params = ls.get_all_params(self.network, trainable=True)
         # TODO enable learning_rate changing after compilation
@@ -195,7 +195,7 @@ class CNNEvaluator(MLPEvaluator):
             if dropout:
                 network = lasagne.layers.dropout(network, p=0.5)
         # output layer
-        network = ls.DenseLayer(network, output_size, nonlinearity=None)
+        network = ls.DenseLayer(network, output_size, nonlinearity=None,b=lasagne.init.Constant(.1))
         return network
 
 
