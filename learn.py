@@ -12,42 +12,42 @@ epochs = np.inf
 training_steps_per_epoch = 5000
 test_episodes_per_epoch = 200
 
+save_params = True
+save_results = True
 
-params_loadfile = None
-params_savefile = None
+load_params = False
+load_results = False
+
+config_loadfile = "config/predict_position.cfg"
+setup = dqn_predict
+remember_actions = 0
+
 results_loadfile = None
-results_savefile = None
+params_loadfile = None
 
-config_loadfile = None
-setup = vlad_center
-remember_actions = 4
-params_savefile = "params/vlad_center_4a"
-#params_loadfile = "params/vlad_center"
-results_savefile = "results/vlad_center_4a.res"
-#results_loadfile = "results/vlad_center.res"
-
-if len(sys.argv)>3:
+if len(sys.argv) > 3:
     params_loadfile = sys.argv[1]
     results_loadfile = sys.argv[2]
     config_loadfile = sys.argv[3]
     params_savefile = params_loadfile
     results_savefile = results_loadfile
 
-# TODO improve this
-if params_loadfile:
-    game = initialize_doom(config_loadfile,True)
+if load_params:
+    game = initialize_doom(config_loadfile, True)
     engine = QEngine.load(game, params_loadfile)
-    engine.set_skiprate(8)
 else:
     game, engine = setup(remember_actions)
+    basefile = engine.name
+    params_savefile = "params/" + basefile
+    results_savefile = "results/" + basefile + ".res"
 
 results = None
 epoch = 0
-if results_loadfile is not None:
+if load_results:
     results = pickle.load(open(results_loadfile, "r"))
     epoch = results["epoch"][-1] + 1
 else:
-    if results_savefile is not None:
+    if save_results:
         results = dict()
         results["epoch"] = []
         results["time"] = []
@@ -95,7 +95,7 @@ while epoch < epochs:
 
         print train_episodes_finished, "training episodes played."
         print "Training results:"
-        print engine.get_actions_stats(clear=True).reshape([-1,4])
+        print engine.get_actions_stats(clear=True).reshape([-1, 4])
 
         mean_loss = engine._evaluator.get_mean_loss()
 
@@ -127,7 +127,7 @@ while epoch < epochs:
     overall_end = time()
     overall_time = overall_end - overall_start
 
-    if results_savefile:
+    if save_results:
         print "Saving results to:", results_savefile
         results["epoch"].append(epoch)
         results["time"].append(train_time)
@@ -146,7 +146,7 @@ while epoch < epochs:
     epoch += 1
     print ""
 
-    if params_savefile:
+    if save_params:
         engine.save(params_savefile)
 
     print "Elapsed time:", sec_to_str(overall_time)
