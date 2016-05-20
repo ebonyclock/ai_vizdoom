@@ -10,7 +10,7 @@ from lasagne.layers import set_all_param_values
 
 from evaluators import *
 from replay_memory import ReplayMemory
-
+import skimage.transform
 
 def generate_default_actions(the_game):
     n = the_game.get_available_buttons_size()
@@ -24,28 +24,23 @@ class QEngine:
     def __init__(self, **kwargs):
         self.setup = kwargs
         self._initialize(**kwargs)
-        kwargs["game"] = None
+        del kwargs["game"]
 
     def _prepare_for_save(self):
         self.setup["epsilon"] = self._epsilon
         self.setup["steps"] = self._steps
         self.setup["skiprate"] = self._skiprate
 
-    def _initialize(self, game, network_args, history_length=1, batchsize=64,
-                    update_pattern=(4, 4),
-                    bank_capacity=10000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=100000,
-                    epsilon_decay_steps=100000,
-                    reward_scale=1.0, misc_scale=None, max_reward=None, reshaped_x=120, skiprate=0,
-                    shaping_on=False, count_states=False, actions=None, name=None, type="cnn", frozen_steps=1000,
-                    freeze=False, remember_n_actions=0):
+    def _initialize(self, game, network_args=None, actions=None, history_length=4, batchsize=64, update_pattern=(1, 1),
+                    replay_memory_size=20000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=50000,
+                    epsilon_decay_steps=100000, reward_scale=1.0, misc_scale=None, reshaped_x=None,
+                    reshaped_y=None, skiprate=4, shaping_on=False, count_states=False, name=None, type="cnn",
+                    frozen_steps=5000, freeze=True, remember_n_actions=0):
 
+        if network_args is None:
+            network_args = dict()
         if count_states is not None:
             self._count_states = bool(count_states)
-
-        if max_reward is not None:
-            self._max_reward = abs(np.float32(max_reward))
-        else:
-            self._max_reward = None
 
         self.name = name
         self._reward_scale = reward_scale
@@ -82,23 +77,35 @@ class QEngine:
         if self._history_length > 1:
             self._channels *= self._history_length
 
-        self._scale = float(reshaped_x) / game.get_screen_width()
-        y = int(game.get_screen_height() * self._scale)
-        x = reshaped_x
+        if reshaped_x is None:
+            x = game.get_screen_width()
+            y = game.get_screen_height()
+            scale_x = scale_y = 1.0
+        else:
+            x = reshaped_x
+            scale_x = float(x) / game.get_screen_width()
+
+            if reshaped_y is None:
+                y = int(game.get_screen_height() * scale_x)
+                scale_y = scale_x
+            else:
+                y = reshaped_y
+                scale_y = float(y) / game.get_screen_height()
 
         img_shape = [self._channels, y, x]
 
-        if self._scale == 1:
-
+        # TODO check if it is slow (it seems that no)
+        if scale_x == 1 and scale_y == 1:
             def convert(img):
                 img = img.astype(np.float32) / 255.0
                 return img
         else:
             def convert(img):
                 img = img.astype(np.float32) / 255.0
-                new_image = np.ndarray([img.shape[0], y, x], dtype=np.float32)
+                new_image = np.ndarray([img.shape[0], y, x], dtype=img.dtype)
                 for i in range(img.shape[0]):
-                    new_image[i] = cv2.resize(img[i], (x, y))
+                    #new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
+                    new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
 
         self._convert_image = convert
@@ -130,7 +137,7 @@ class QEngine:
         state_format = dict()
         state_format["s_img"] = img_shape
         state_format["s_misc"] = self._total_misc_len
-        self._transitions = ReplayMemory(state_format, bank_capacity, batchsize)
+        self._transitions = ReplayMemory(state_format, replay_memory_size, batchsize)
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
@@ -140,9 +147,9 @@ class QEngine:
             self._evaluator = CNNEvaluator(**network_args)
         elif type == "cnn_mem":
             network_args["architecture"]["memory"] = self._history_length
-            self._evaluator = CNNEvaluator_mem(**network_args)
-        elif type == "mlp":
-            self._evaluator = MLPEvaluator(**network_args)
+            self._evaluator = CNNEvaluatorMem(**network_args)
+        elif type == "dqn":
+            self._evaluator = DQN(**network_args)
         else:
             print "Unsupported evaluator type specified"
 
@@ -185,6 +192,9 @@ class QEngine:
             self._last_n_actions[-self._action_len:] = self._actions[self._last_action_index]
             self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
 
+            # io.imshow_collection(self._current_image_state)
+            # io.show()
+
     def new_episode(self, update_state=False):
         self._game.new_episode()
         self.reset_state()
@@ -219,14 +229,14 @@ class QEngine:
     def make_step(self):
         self._update_state()
         # TODO Check if not making the copy still works
-        a = self._evaluator.best_action(self._current_state_copy())
+        a = self._evaluator.estimate_best_action(self._current_state_copy())
         self._actions_stats[a] += 1
         self._game.make_action(self._actions[a], self._skiprate + 1)
         self._last_action_index = a
 
-    def make_sleep_step(self, sleep_time=1/35.0):
+    def make_sleep_step(self, sleep_time=1 / 35.0):
         self._update_state()
-        a = self._evaluator.best_action(self._current_state_copy())
+        a = self._evaluator.estimate_best_action(self._current_state_copy())
         self._actions_stats[a] += 1
 
         self._game.set_action(self._actions[a])
@@ -252,7 +262,7 @@ class QEngine:
         if self._epsilon >= random.random():
             a = random.randint(0, len(self._actions) - 1)
         else:
-            a = self._evaluator.best_action(s)
+            a = self._evaluator.estimate_best_action(s)
         self._actions_stats[a] += 1
 
         # make action and get the reward
@@ -263,9 +273,6 @@ class QEngine:
             sr = np.float32(doom_fixed_to_double(self._game.get_game_variable(GameVariable.USER1)))
             r += sr - self._last_shaping_reward
             self._last_shaping_reward = sr
-
-        if self._max_reward:
-            r = np.clip(r, -self._max_reward, self._max_reward)
 
         r *= self._reward_scale
 
@@ -283,7 +290,8 @@ class QEngine:
         # Perform q-learning once for a while
         if self._transitions.get_size() > self._batchsize and self._steps % self._update_pattern[0] == 0:
             for i in range(self._update_pattern[1]):
-                self.learn_batch()
+                self._evaluator.learn(self._transitions.get_sample())
+
 
         # Melt the network sometimes
         if self._freeze:
@@ -294,13 +302,10 @@ class QEngine:
     def add_transition(self, s, a, s2, r, terminal):
         self._transitions.add_transition(s, a, s2, r, terminal)
 
-    def learn_batch(self):
-        self._evaluator.learn(self._transitions.get_sample())
-
     # Runs a single episode in current mode. It ignores the mode if learn==true/false
     def run_episode(self, sleep_time=0):
         self.new_episode()
-        if sleep_time==0:
+        if sleep_time == 0:
             while not self._game.is_episode_finished():
                 self.make_step()
         else:

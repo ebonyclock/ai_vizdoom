@@ -8,24 +8,28 @@ from tqdm import tqdm
 from agents import *
 from util import *
 
-epochs = np.inf
+
+setup = dqn_predict
+grayscale = True
+remember_actions = 0
 training_steps_per_epoch = 5000
 test_episodes_per_epoch = 200
-
 save_params = True
 save_results = True
 
-load_params = False
-load_results = False
+epochs = np.inf
+config_loadfile = None
 
-config_loadfile = "config/predict_position.cfg"
-setup = dqn_predict
-remember_actions = 0
+grayscale = True
+
 
 results_loadfile = None
 params_loadfile = None
-
+load_params = False
+load_results = False
 if len(sys.argv) > 3:
+    load_params = True
+    load_results = True
     params_loadfile = sys.argv[1]
     results_loadfile = sys.argv[2]
     config_loadfile = sys.argv[3]
@@ -36,7 +40,7 @@ if load_params:
     game = initialize_doom(config_loadfile, True)
     engine = QEngine.load(game, params_loadfile)
 else:
-    game, engine = setup(remember_actions)
+    game, engine = setup(remember_actions,grayscale)
     basefile = engine.name
     params_savefile = "params/" + basefile
     results_savefile = "results/" + basefile + ".res"
@@ -64,13 +68,24 @@ else:
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape
+print "\nEngine setup:"
+for k in engine.setup.keys():
+    if k == "network_args":
+        print"network_args:"
+        net_args = engine.setup[k]
+        for k2 in net_args.keys():
+            print "\t",k2,":",net_args[k2]
+    else:
+        print k,":",engine.setup[k]
+print
+print "============================"
 
 test_frequency = 1
 overall_start = time()
 if results_loadfile and len(results["time"]) > 0:
     overall_start -= results["overall_time"][-1]
 # Training starts here!
-print
+
 
 while epoch < epochs:
     print "\nEpoch", epoch

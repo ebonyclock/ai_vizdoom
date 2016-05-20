@@ -1,14 +1,44 @@
+from collections import OrderedDict
+
 import lasagne
 import lasagne.layers as ls
 import numpy as np
 import theano
 import theano.tensor as tensor
+import theano.tensor as T
 from lasagne.nonlinearities import rectify
 from lasagne.objectives import squared_error
+from lasagne.updates import get_or_compute_grads
+
+
+def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
+                     rho=0.95, epsilon=0.01):
+    grads = get_or_compute_grads(loss_or_grads, params)
+    updates = OrderedDict()
+
+    for param, grad in zip(params, grads):
+        value = param.get_value(borrow=True)
+
+        acc_grad = theano.shared(np.zeros(value.shape, dtype=value.dtype),
+                                 broadcastable=param.broadcastable)
+        acc_grad_new = rho * acc_grad + (1 - rho) * grad
+
+        acc_rms = theano.shared(np.zeros(value.shape, dtype=value.dtype),
+                                broadcastable=param.broadcastable)
+        acc_rms_new = rho * acc_rms + (1 - rho) * grad ** 2
+
+        updates[acc_grad] = acc_grad_new
+        updates[acc_rms] = acc_rms_new
+
+        updates[param] = (param - learning_rate *
+                          (grad /
+                           T.sqrt(acc_rms_new - acc_grad_new ** 2 + epsilon)))
+
+    return updates
 
 
 class DQN:
-    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.00025,
+    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.0002,
                  freeze=False):
         self._inputs = dict()
         if architecture is None:
@@ -92,8 +122,9 @@ class DQN:
 
         params = ls.get_all_params(self.network, trainable=True)
         # TODO enable learning_rate changing after compilation
-        updates = lasagne.updates.rmsprop(loss, params, self._learning_rate)
 
+        updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
+        # updates = deepmind_rmsprop(loss, params, self._learning_rate)
         # print "Compiling Theano functions ..."
 
         # TODO find out why this causes problems with misc vector
@@ -164,11 +195,11 @@ class DQN:
 
 class CNNEvaluator(DQN):
     # TODO check if this constructor is needed
-    def __init__(self, learning_rate=0.00001, gamma=1.0, **kwargs):
-        DQN.__init__(self, learning_rate, gamma, **kwargs)
+    def __init__(self, **kwargs):
+        DQN.__init__(self, **kwargs)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=3, num_filters=(32, 32, 32),
-                            filter_size=(7, 5, 3), hidden_units=(1024), pool_size=(2, 2, 2), stride=(1, 1, 1),
+                            filter_size=(7, 5, 3), hidden_units=tuple([1024]), pool_size=(2, 2, 2), stride=(1, 1, 1),
                             pad=(0, 0, 0),
                             hidden_layers=1, dropout=False):
 
