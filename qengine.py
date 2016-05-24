@@ -10,7 +10,7 @@ from lasagne.layers import set_all_param_values
 
 from evaluators import *
 from replay_memory import ReplayMemory
-import skimage.transform
+
 
 def generate_default_actions(the_game):
     n = the_game.get_available_buttons_size()
@@ -104,7 +104,7 @@ class QEngine:
                 img = img.astype(np.float32) / 255.0
                 new_image = np.ndarray([img.shape[0], y, x], dtype=img.dtype)
                 for i in range(img.shape[0]):
-                    #new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
+                    # new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
                     new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
 
@@ -123,6 +123,7 @@ class QEngine:
             self._total_misc_len = single_state_misc_len * self._history_length
 
         if self._total_misc_len > 0:
+
             self._misc_state_included = True
             self._current_misc_state = np.zeros(self._total_misc_len, dtype=np.float32)
             if single_state_misc_len > 0:
@@ -178,7 +179,7 @@ class QEngine:
             self._current_image_state[-pure_channels:] = img
 
             if self._single_state_misc_len > 0:
-                self._current_misc_state = np.roll(self._current_misc_state, -len(state_misc))
+                self._current_misc_state[:-len(state_misc)] = self._current_misc_state[len(state_misc):]
                 a = len(self._current_misc_state)
                 self._current_misc_state[a - len(state_misc):a] = state_misc
 
@@ -188,12 +189,9 @@ class QEngine:
                 self._current_misc_state[0:len(state_misc)] = state_misc
 
         if self._remember_n_actions:
-            np.roll(self._last_n_actions, -self._action_len)
+            self._last_n_actions[:-self._action_len] = self._last_n_actions[self._action_len:]
             self._last_n_actions[-self._action_len:] = self._actions[self._last_action_index]
             self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
-
-            # io.imshow_collection(self._current_image_state)
-            # io.show()
 
     def new_episode(self, update_state=False):
         self._game.new_episode()
@@ -292,7 +290,6 @@ class QEngine:
             for i in range(self._update_pattern[1]):
                 self._evaluator.learn(self._transitions.get_sample())
 
-
         # Melt the network sometimes
         if self._freeze:
             if (self._steps + 1) % self._frozen_steps:
@@ -381,7 +378,6 @@ class QEngine:
         epsilon = qengine_args["epsilon"]
         del (qengine_args["epsilon"])
         del (qengine_args["steps"])
-
         qengine_args["game"] = game
 
         qengine = QEngine(**qengine_args)
