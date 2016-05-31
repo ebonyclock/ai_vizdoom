@@ -7,7 +7,6 @@ import theano
 import theano.tensor as tensor
 import theano.tensor as T
 from lasagne.nonlinearities import rectify
-from lasagne.objectives import squared_error
 from lasagne.updates import get_or_compute_grads
 
 
@@ -38,8 +37,7 @@ def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
 
 
 class DQN:
-    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.0002,
-                 freeze=False):
+    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.00025):
         self._inputs = dict()
         if architecture is None:
             architecture = dict()
@@ -47,123 +45,120 @@ class DQN:
         self._loss_history = []
         self._misc_state_included = (state_format["s_misc"] > 0)
         self._gamma = np.float64(gamma)
+
+        self._inputs["S0"] = tensor.tensor4("S0")
+        self._inputs["S1"] = tensor.tensor4("S1")
+        self._inputs["A"] = tensor.vector("Action", dtype="int32")
+        self._inputs["R"] = tensor.vector("Reward")
+        self._inputs["Nonterminal"] = tensor.vector("Nonterminal", dtype="int8")
         if self._misc_state_included:
-            self._inputs["X_misc"] = tensor.matrix("X_misc")
+            self._inputs["S0_misc"] = tensor.matrix("S0_misc")
+            self._inputs["S1_misc"] = tensor.matrix("S1_misc")
             self._misc_len = state_format["s_misc"]
         else:
             self._misc_len = None
 
-        self._inputs["X"] = tensor.tensor4("X")
-        self._inputs["Q2"] = tensor.vector("Q2")
-        self._inputs["A"] = tensor.vector("Action", dtype="int32")
-        self._inputs["R"] = tensor.vector("Reward")
-        self._inputs["Nonterminal"] = tensor.vector("Nonterminal", dtype="int8")
-        self._freeze = freeze
-
-        network_image_input_shape = list(state_format["s_img"])
-        network_image_input_shape.insert(0, None)
-
         # save it for the evaluation reshape
-        self._single_image_input_shape = list(network_image_input_shape)
-        self._single_image_input_shape[0] = 1
+        # TODO get rid of this?
+        self._single_image_input_shape = (1,) + tuple(state_format["s_img"])
 
-        architecture["img_input_shape"] = network_image_input_shape
+        architecture["img_input_shape"] = (None,) + tuple(state_format["s_img"])
         architecture["misc_len"] = self._misc_len
         architecture["output_size"] = actions_number
 
-        self.network = self._initialize_network(**architecture)
-        if self._freeze:
-            self.frozen_network = self._initialize_network(**architecture)
+        if self._misc_state_included:
+            self.network = self._initialize_network(img_input=self._inputs["S0"], misc_input=self._inputs["S0_misc"],
+                                                    **architecture)
+            self.frozen_network = self._initialize_network(img_input=self._inputs["S1"],
+                                                           misc_input=self._inputs["S1_misc"], **architecture)
+        else:
+
+            self.network = self._initialize_network(img_input=self._inputs["S0"], **architecture)
+            self.frozen_network = self._initialize_network(img_input=self._inputs["S1"], **architecture)
+
         # print "Network initialized."
         self._learning_rate = learning_rate
         self._compile()
 
-    def _initialize_network(self, img_input_shape, misc_len, output_size, **kwargs):
+    def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
 
-        network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
+        # weights_init = lasagne.init.GlorotUniform("relu")
+        weights_init = lasagne.init.HeNormal("relu")
 
-        network = ls.Conv2DLayer(network, num_filters=32, filter_size=8,
-                                 nonlinearity=rectify, W=lasagne.init.GlorotUniform("relu"),
-                                 b=lasagne.init.Constant(.1), stride=4, pad=2)
-        network = ls.Conv2DLayer(network, num_filters=64, filter_size=4,
-                                 nonlinearity=rectify, W=lasagne.init.GlorotUniform("relu"),
+        network = ls.InputLayer(shape=img_input_shape, input_var=img_input)
+
+        network = ls.Conv2DLayer(network, num_filters=32, filter_size=8, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(.1), stride=4)
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=4, nonlinearity=rectify, W=weights_init,
                                  b=lasagne.init.Constant(.1), stride=2)
-        network = ls.Conv2DLayer(network, num_filters=64, filter_size=3,
-                                 nonlinearity=rectify, W=lasagne.init.GlorotUniform("relu"),
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
                                  b=lasagne.init.Constant(.1), stride=1)
 
         if self._misc_state_included:
             network = ls.FlattenLayer(network)
-            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             network = ls.ConcatLayer([network, misc_input_layer])
 
         network = ls.DenseLayer(network, 512, nonlinearity=rectify,
-                                W=lasagne.init.GlorotUniform("relu"), b=lasagne.init.Constant(.1))
+                                W=weights_init, b=lasagne.init.Constant(.1))
 
         network = ls.DenseLayer(network, output_size, nonlinearity=None, b=lasagne.init.Constant(.1))
         return network
 
     def _compile(self):
 
-        q = ls.get_output(self.network, deterministic=False)
-        deterministic_q = ls.get_output(self.network, deterministic=True)
-        if self._freeze:
-            frozen_q = ls.get_output(self.frozen_network, deterministic=True)
-
         a = self._inputs["A"]
         r = self._inputs["R"]
+
+        q = ls.get_output(self.network, deterministic=False)
+        deterministic_q = ls.get_output(self.network, deterministic=True)
+
+        q2 = tensor.max(ls.get_output(self.frozen_network, deterministic=True), axis=1, keepdims=True)
+
         nonterminal = self._inputs["Nonterminal"]
-        q2 = self._inputs["Q2"]
+        target_q = r + self._gamma * nonterminal * q2
 
-        # TODO move r + ... out and check ig it's faster
-        # target_q = tensor.set_subtensor(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2)
-
-        loss = squared_error(q[tensor.arange(q.shape[0]), a], r + self._gamma * nonterminal * q2).mean()
+        # Loss
+        abs_err = abs(q[tensor.arange(q.shape[0]), a] - target_q)
+        quadratic_part = tensor.minimum(abs_err, 1)
+        linear_part = abs_err - quadratic_part
+        loss = (0.5 * quadratic_part ** 2 + linear_part).mean()
 
         params = ls.get_all_params(self.network, trainable=True)
-        # TODO enable learning_rate changing after compilation
 
-        updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
-        # updates = deepmind_rmsprop(loss, params, self._learning_rate)
-        # print "Compiling Theano functions ..."
+        # updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
+        updates = deepmind_rmsprop(loss, params, self._learning_rate)
 
-        # TODO find out why this causes problems with misc vector
+        # TODO find out why this mode causes problems with misc vector
         # mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         mode = None
+
+        s0_img = self._inputs["S0"]
+        s1_img = self._inputs["S1"]
         if self._misc_state_included:
-            self._learn = theano.function([self._inputs["X"], self._inputs["X_misc"], q2, a, r, nonterminal], loss,
+            s0_misc = self._inputs["S0_misc"]
+            s1_misc = self._inputs["S1_misc"]
+            self._learn = theano.function([s0_img, s0_misc, s1_img, s1_misc, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], deterministic_q, mode=mode,
+            self._evaluate = theano.function([s0_img, s0_misc], deterministic_q, mode=mode,
                                              name="eval_fn")
-            if self._freeze:
-                self._q2_evaluate = theano.function([self._inputs["X"], self._inputs["X_misc"]], frozen_q, mode=mode,
-                                                    name="frozen_eval_fn")
-            else:
-                self._q2_evaluate = self._evaluate
         else:
-            self._learn = theano.function([self._inputs["X"], q2, a, r, nonterminal], loss, updates=updates, mode=mode,
+            self._learn = theano.function([s0_img, s1_img, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
-            self._evaluate = theano.function([self._inputs["X"]], deterministic_q, mode=mode, name="eval_fn")
-            if self._freeze:
-                self._q2_evaluate = theano.function([self._inputs["X"]], frozen_q, mode=mode, name="frozen_eval_fn")
-            else:
-                self._q2_evaluate = self._evaluate
+            self._evaluate = theano.function([s0_img], deterministic_q, mode=mode, name="eval_fn")
 
     def learn(self, transitions):
         # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t)
+
         X = transitions["s1_img"]
         X2 = transitions["s2_img"]
+
         if self._misc_state_included:
             X_misc = transitions["s1_misc"]
             X2_misc = transitions["s2_misc"]
-            Q2 = np.max(self._q2_evaluate(X2, X2_misc), axis=1)
+            loss = self._learn(X, X_misc, X2, X2_misc, transitions["a"], transitions["r"], transitions["nonterminal"])
         else:
-            Q2 = np.max(self._q2_evaluate(X2), axis=1)
-
-        if self._misc_state_included:
-            loss = self._learn(X, X_misc, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
-        else:
-            loss = self._learn(X, Q2, transitions["a"], transitions["r"], transitions["nonterminal"])
+            loss = self._learn(X, X2, transitions["a"], transitions["r"], transitions["nonterminal"])
 
         self._loss_history.append(loss)
 
@@ -171,10 +166,7 @@ class DQN:
         if self._misc_state_included:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape),
                                    state[1].reshape(1, self._misc_len))
-            # TODO Check if it's correct
             a = np.argmax(qvals)
-            # DEBUG
-            # print np.max(qvals)
         else:
             qvals = self._evaluate(state[0].reshape(self._single_image_input_shape))
             a = np.argmax(qvals)
@@ -192,104 +184,3 @@ class DQN:
     def melt(self):
         ls.set_all_param_values(self.frozen_network, ls.get_all_param_values(self.network))
 
-
-class CNNEvaluator(DQN):
-    # TODO check if this constructor is needed
-    def __init__(self, **kwargs):
-        DQN.__init__(self, **kwargs)
-
-    def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=3, num_filters=(32, 32, 32),
-                            filter_size=(7, 5, 3), hidden_units=tuple([1024]), pool_size=(2, 2, 2), stride=(1, 1, 1),
-                            pad=(0, 0, 0),
-                            hidden_layers=1, dropout=False):
-
-        network = ls.InputLayer(shape=img_input_shape, input_var=self._inputs["X"])
-
-        for i in range(conv_layers):
-            network = ls.Conv2DLayer(network, num_filters=num_filters[i], filter_size=filter_size[i],
-                                     nonlinearity=rectify, W=lasagne.init.GlorotUniform("relu"),
-                                     b=lasagne.init.Constant(.1), stride=stride[i], pad=pad[i])
-            if pool_size is not None:
-                network = ls.MaxPool2DLayer(network, pool_size=pool_size[i])
-            if dropout:
-                network = lasagne.layers.dropout(network, p=0.5)
-
-        if self._misc_state_included:
-            network = ls.FlattenLayer(network)
-            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
-            network = ls.ConcatLayer([network, misc_input_layer])
-
-        for i in range(hidden_layers):
-            network = ls.DenseLayer(network, hidden_units[i], nonlinearity=rectify,
-                                    W=lasagne.init.GlorotUniform("relu"), b=lasagne.init.Constant(.1))
-            if dropout:
-                network = lasagne.layers.dropout(network, p=0.5)
-        network = ls.DenseLayer(network, output_size, nonlinearity=None, b=lasagne.init.Constant(.1))
-        return network
-
-
-class CNNEvaluatorMem(DQN):
-    def __init__(self, **kwargs):
-        DQN.__init__(self, **kwargs)
-
-    def _initialize_network(self, img_input_shape, misc_len, output_size, conv_layers=3, num_filters=(32, 32, 32),
-                            filter_size=((5, 5), (5, 5), (5, 5)), hidden_units=(1024),
-                            pool_size=((2, 2), (2, 2), (2, 2)),
-                            hidden_layers=1, dropout=False, memory=1, merge_hidden=(512)):
-
-        memory = max(1, memory)
-        channels_per_cell = img_input_shape[1] / memory
-        networks = []
-        shape = img_input_shape[0:4]
-        shape[1] /= memory
-
-        for mem in range(memory):
-            start_i = mem * channels_per_cell
-            end_i = start_i + channels_per_cell
-            cell_input = ls.InputLayer(shape=shape, input_var=self._inputs["X"][:, start_i:end_i])
-            networks.append(cell_input)
-
-        for i in range(conv_layers):
-            for mem in range(memory):
-                if mem == 0:
-                    w = lasagne.init.GlorotUniform("relu")
-                    b = lasagne.init.Constant(.1)
-                else:
-                    w = networks[mem - 1].W
-                    b = networks[mem - 1].b
-                networks[mem] = ls.Conv2DLayer(networks[mem], num_filters=num_filters[i], filter_size=filter_size[i],
-                                               nonlinearity=rectify, W=w, b=b)
-
-            if dropout or pool_size is not None:
-                for mem in range(memory):
-                    if pool_size is not None:
-                        networks[mem] = ls.MaxPool2DLayer(networks[mem], pool_size=pool_size[i])
-                    if dropout:
-                        networks[mem] = lasagne.layers.dropout(networks[mem], p=0.5)
-
-        for mem in range(memory):
-            if mem == 0:
-                w = lasagne.init.GlorotUniform("relu")
-                b = lasagne.init.Constant(0.1)
-            else:
-                w = networks[mem - 1].W
-                b = networks[mem - 1].b
-            networks[mem] = ls.FlattenLayer(networks[mem])
-            networks[mem] = ls.DenseLayer(networks[mem], merge_hidden, nonlinearity=rectify,
-                                          W=w, b=b)
-
-        if self._misc_state_included:
-            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=self._inputs["X_misc"])
-            networks.append(misc_input_layer)
-            network = ls.ConcatLayer(networks)
-        else:
-            network = ls.ConcatLayer(networks)
-
-        for i in range(hidden_layers):
-            network = ls.DenseLayer(network, hidden_units[i], nonlinearity=rectify,
-                                    W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.1))
-            if dropout:
-                network = lasagne.layers.dropout(network, p=0.5)
-
-        network = ls.DenseLayer(network, output_size, nonlinearity=None)
-        return network

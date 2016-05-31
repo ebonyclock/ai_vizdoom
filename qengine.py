@@ -32,10 +32,10 @@ class QEngine:
         self.setup["skiprate"] = self._skiprate
 
     def _initialize(self, game, network_args=None, actions=None, history_length=4, batchsize=64, update_pattern=(1, 1),
-                    replay_memory_size=20000, start_epsilon=1.0, end_epsilon=0.1, epsilon_decay_start_step=50000,
-                    epsilon_decay_steps=100000, reward_scale=1.0, misc_scale=None, reshaped_x=None,
-                    reshaped_y=None, skiprate=4, shaping_on=False, count_states=False, name=None, type="cnn",
-                    frozen_steps=5000, freeze=True, remember_n_actions=0):
+                    replay_memory_size=100000, backprop_start_step=10000, start_epsilon=1.0, end_epsilon=0.1,
+                    epsilon_decay_start_step=50000, epsilon_decay_steps=100000, reward_scale=1.0, misc_scale=None,
+                    reshaped_x=None, reshaped_y=None, skiprate=4, shaping_on=False, count_states=False, name=None,
+                    type="cnn", frozen_steps=10000, remember_n_actions=0):
 
         if network_args is None:
             network_args = dict()
@@ -57,7 +57,7 @@ class QEngine:
         self._shaping_on = shaping_on
         self._steps = 0
         self._frozen_steps = frozen_steps
-        self._freeze = freeze
+        self._backprop_start_step = max(backprop_start_step, batchsize)
 
         if self._shaping_on:
             self._last_shaping_reward = 0
@@ -103,7 +103,7 @@ class QEngine:
             def convert(img):
                 img = img.astype(np.float32) / 255.0
                 new_image = np.ndarray([img.shape[0], y, x], dtype=img.dtype)
-                for i in range(img.shape[0]):
+                for i in xrange(img.shape[0]):
                     # new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
                     new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
@@ -123,7 +123,6 @@ class QEngine:
             self._total_misc_len = single_state_misc_len * self._history_length
 
         if self._total_misc_len > 0:
-
             self._misc_state_included = True
             self._current_misc_state = np.zeros(self._total_misc_len, dtype=np.float32)
             if single_state_misc_len > 0:
@@ -142,17 +141,13 @@ class QEngine:
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
-        network_args["freeze"] = freeze
 
-        if type in ("cnn", None, ""):
-            self._evaluator = CNNEvaluator(**network_args)
-        elif type == "cnn_mem":
-            network_args["architecture"]["memory"] = self._history_length
-            self._evaluator = CNNEvaluatorMem(**network_args)
-        elif type == "dqn":
+        if type in ("dqn", None, ""):
             self._evaluator = DQN(**network_args)
         else:
-            print "Unsupported evaluator type specified"
+            print "Unsupported evaluator type."
+            exit(1)
+            # TODO throw. . .?
 
         self._current_image_state = np.zeros(img_shape, dtype=np.float32)
 
@@ -219,6 +214,7 @@ class QEngine:
     # Sets the whole state to zeros. 
     def reset_state(self):
         self._current_image_state.fill(0.0)
+        self._last_action_index = 0
         if self._misc_state_included:
             self._current_misc_state.fill(0.0)
             if self._remember_n_actions > 0:
@@ -239,7 +235,7 @@ class QEngine:
 
         self._game.set_action(self._actions[a])
         self._last_action_index = a
-        for i in range(self._skiprate):
+        for i in xrange(self._skiprate):
             self._game.advance_action(1, False, True)
             sleep(sleep_time)
         self._game.advance_action()
@@ -281,19 +277,18 @@ class QEngine:
             self._transitions.add_transition(s, a, s2, r, terminal=True)
         else:
             self._update_state()
-            # copy is not needed here cuase add transition copies it anyway
+            # copy is not needed becuase something magical TODO check it
             s2 = self._current_state()
             self._transitions.add_transition(s, a, s2, r)
 
         # Perform q-learning once for a while
-        if self._transitions.get_size() > self._batchsize and self._steps % self._update_pattern[0] == 0:
-            for i in range(self._update_pattern[1]):
+        if self._transitions.size >= self._backprop_start_step and self._steps % self._update_pattern[0] == 0:
+            for _ in xrange(self._update_pattern[1]):
                 self._evaluator.learn(self._transitions.get_sample())
 
         # Melt the network sometimes
-        if self._freeze:
-            if (self._steps + 1) % self._frozen_steps:
-                self._evaluator.melt()
+        if self._steps % self._frozen_steps == 0:
+            self._evaluator.melt()
 
     # Adds a transition to the bank.
     def add_transition(self, s, a, s2, r, terminal):
@@ -357,8 +352,8 @@ class QEngine:
             print "Loading network weights from " + filename + "..."
         params = pickle.load(open(filename, "rb"))
         set_all_param_values(self._evaluator.network, params)
-        if self._freeze:
-            set_all_param_values(self._evaluator.frozen_network, params)
+        set_all_param_values(self._evaluator.frozen_network, params)
+
         if not quiet:
             print "Loading finished."
 
@@ -382,8 +377,7 @@ class QEngine:
 
         qengine = QEngine(**qengine_args)
         set_all_param_values(qengine._evaluator.network, network_params)
-        if qengine._freeze:
-            set_all_param_values(qengine._evaluator.frozen_network, network_params)
+        set_all_param_values(qengine._evaluator.frozen_network, network_params)
 
         if not quiet:
             print "Loading finished."

@@ -3,7 +3,7 @@
 import sys
 from time import time
 
-from tqdm import tqdm
+from tqdm import trange
 
 from agents import *
 from util import *
@@ -94,7 +94,7 @@ while epoch < epochs:
         start = time()
         engine.new_episode(update_state=True)
         print "\nTraining ..."
-        for step in tqdm(range(training_steps_per_epoch)):
+        for step in trange(training_steps_per_epoch):
             if game.is_episode_finished():
                 r = game.get_total_reward()
                 rewards.append(r)
@@ -124,7 +124,7 @@ while epoch < epochs:
 
         start = time()
         print "Testing..."
-        for test_episode in tqdm(range(test_episodes_per_epoch)):
+        for test_episode in trange(test_episodes_per_epoch):
             r = engine.run_episode()
             rewards.append(r)
         end = time()

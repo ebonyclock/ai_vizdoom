@@ -33,10 +33,10 @@ class ReplayMemory:
             self._s2_misc_buf = None
             self._misc = False
 
-        self._size = 0
         self._capacity = capacity
         self._oldest_index = 0
         self._batch_size = batch_size
+        self.size = 0
 
         ret = dict()
         ret["s1_img"] = self._s1_img_buf
@@ -50,7 +50,6 @@ class ReplayMemory:
         self._ret_dict = ret.copy()
 
     def add_transition(self, s1, a, s2, r, terminal=False):
-
         self._s1_img[self._oldest_index] = s1[0]
         if not terminal:
             self._s2_img[self._oldest_index] = s2[0]
@@ -66,14 +65,14 @@ class ReplayMemory:
 
         self._oldest_index = (self._oldest_index + 1) % self._capacity
 
-        if self._size < self._capacity:
-            self._size += 1
+        if self.size < self._capacity:
+            self.size += 1
 
     def get_sample(self):
-        if self._batch_size > self._size:
+        if self._batch_size > self.size:
             raise Exception("Transition bank doesn't contain " + str(self._batch_size) + " entries.")
 
-        indexes = random.sample(range(0, self._size), self._batch_size)
+        indexes = random.sample(xrange(0, self.size), self._batch_size)
 
         self._s1_img_buf[:] = self._s1_img[indexes]
         self._s2_img_buf[:] = self._s2_img[indexes]
@@ -84,6 +83,3 @@ class ReplayMemory:
         self._r_buf[:] = self._r[indexes]
         self._nonterminal_buf[:] = self._nonterminal[indexes]
         return self._ret_dict
-
-    def get_size(self):
-        return self._size
