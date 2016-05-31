@@ -32,7 +32,7 @@ class QEngine:
         self.setup["skiprate"] = self._skiprate
 
     def _initialize(self, game, network_args=None, actions=None, history_length=4, batchsize=64, update_pattern=(1, 1),
-                    replay_memory_size=100000, backprop_start_step=10000, start_epsilon=1.0, end_epsilon=0.1,
+                    replay_memory_size=10000, backprop_start_step=10000, start_epsilon=1.0, end_epsilon=0.1,
                     epsilon_decay_start_step=50000, epsilon_decay_steps=100000, reward_scale=1.0, misc_scale=None,
                     reshaped_x=None, reshaped_y=None, skiprate=4, shaping_on=False, count_states=False, name=None,
                     type="cnn", frozen_steps=10000, remember_n_actions=0):

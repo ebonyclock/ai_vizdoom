@@ -34,9 +34,9 @@ class ReplayMemory:
             self._misc = False
 
         self._capacity = capacity
+        self.size = 0
         self._oldest_index = 0
         self._batch_size = batch_size
-        self.size = 0
 
         ret = dict()
         ret["s1_img"] = self._s1_img_buf
@@ -50,7 +50,11 @@ class ReplayMemory:
         self._ret_dict = ret.copy()
 
     def add_transition(self, s1, a, s2, r, terminal=False):
+        if self.size < self._capacity:
+            self.size += 1
+
         self._s1_img[self._oldest_index] = s1[0]
+
         if not terminal:
             self._s2_img[self._oldest_index] = s2[0]
 
@@ -65,8 +69,6 @@ class ReplayMemory:
 
         self._oldest_index = (self._oldest_index + 1) % self._capacity
 
-        if self.size < self._capacity:
-            self.size += 1
 
     def get_sample(self):
         if self._batch_size > self.size:

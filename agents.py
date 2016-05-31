@@ -29,5 +29,6 @@ def dqn_predict():
         "start_epsilon": 1.0,
         "update_pattern": (4, 1),
         "backprop_start_step": 10000,
+        "replay_memory_size": 50000
     }
     return game, QEngine(game=game, **engine_args)
