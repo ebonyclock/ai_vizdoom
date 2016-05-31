@@ -10,17 +10,13 @@ from util import *
 
 
 setup = dqn_predict
-grayscale = True
-remember_actions = 0
-training_steps_per_epoch = 5000
-test_episodes_per_epoch = 200
-save_params = True
-save_results = True
+training_steps_per_epoch = 200000
+test_episodes_per_epoch = 300
+save_params = False
+save_results = False
 
 epochs = np.inf
 config_loadfile = None
-
-grayscale = True
 
 
 results_loadfile = None
@@ -40,7 +36,7 @@ if load_params:
     game = initialize_doom(config_loadfile, True)
     engine = QEngine.load(game, params_loadfile)
 else:
-    game, engine = setup(remember_actions,grayscale)
+    game, engine = setup()
     basefile = engine.name
     params_savefile = "params/" + basefile
     results_savefile = "results/" + basefile + ".res"
