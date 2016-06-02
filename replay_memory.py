@@ -69,13 +69,11 @@ class ReplayMemory:
 
         self._oldest_index = (self._oldest_index + 1) % self._capacity
 
-
     def get_sample(self):
         if self._batch_size > self.size:
             raise Exception("Transition bank doesn't contain " + str(self._batch_size) + " entries.")
 
         indexes = random.sample(xrange(0, self.size), self._batch_size)
-
         self._s1_img_buf[:] = self._s1_img[indexes]
         self._s2_img_buf[:] = self._s2_img[indexes]
         if self._misc:

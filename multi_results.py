@@ -23,6 +23,8 @@ legend = plt.legend(loc='upper left')
 for legobj in legend.legendHandles:
     legobj.set_linewidth(3.0)
 
+legend = plt.legend(loc='lower right')
+
 plt.show()
-#plt.savefig("defend_the_line.pdf")
+#plt.savefig("predicts.pdf")
 

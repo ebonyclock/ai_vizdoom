@@ -10,6 +10,19 @@ from lasagne.nonlinearities import rectify
 from lasagne.updates import get_or_compute_grads
 
 
+class DuellingMergeLayer(ls.MergeLayer):
+    def __init__(self, incomings, **kwargs):
+        ls.MergeLayer.__init__(self, incomings, **kwargs)
+
+    def get_output_shape_for(self, input_shapes):
+        return input_shapes[0]
+
+    def get_output_for(self, inputs, **kwargs):
+        m = tensor.mean(inputs[0], axis=1, keepdims=True)
+        sv = tensor.addbroadcast(inputs[1],1)
+        return inputs[0] + sv - m
+
+
 def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
                      rho=0.95, epsilon=0.01):
     grads = get_or_compute_grads(loss_or_grads, params)
@@ -37,7 +50,7 @@ def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
 
 
 class DQN:
-    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.00025):
+    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.00025, ddqn=False):
         self._inputs = dict()
         if architecture is None:
             architecture = dict()
@@ -48,9 +61,9 @@ class DQN:
 
         self._inputs["S0"] = tensor.tensor4("S0")
         self._inputs["S1"] = tensor.tensor4("S1")
-        self._inputs["A"] = tensor.vector("Action", dtype="int32")
+        self._inputs["A"] = tensor.ivector("Action")
         self._inputs["R"] = tensor.vector("Reward")
-        self._inputs["Nonterminal"] = tensor.vector("Nonterminal", dtype="int8")
+        self._inputs["Nonterminal"] = tensor.bvector("Nonterminal")
         if self._misc_state_included:
             self._inputs["S0_misc"] = tensor.matrix("S0_misc")
             self._inputs["S1_misc"] = tensor.matrix("S1_misc")
@@ -67,71 +80,87 @@ class DQN:
         architecture["output_size"] = actions_number
 
         if self._misc_state_included:
-            self.network = self._initialize_network(img_input=self._inputs["S0"], misc_input=self._inputs["S0_misc"],
-                                                    **architecture)
-            self.frozen_network = self._initialize_network(img_input=self._inputs["S1"],
-                                                           misc_input=self._inputs["S1_misc"], **architecture)
+            self.network, self.input_layers = self._initialize_network(img_input=self._inputs["S0"],
+                                                                       misc_input=self._inputs["S0_misc"],
+                                                                       **architecture)
+            self.frozen_network, _ = self._initialize_network(img_input=self._inputs["S1"],
+                                                              misc_input=self._inputs["S1_misc"], **architecture)
+            self._alternate_inputs = {
+                self.input_layers[0]: self._inputs["S1"],
+                self.input_layers[1]: self._inputs["S1_misc"]
+            }
         else:
 
-            self.network = self._initialize_network(img_input=self._inputs["S0"], **architecture)
-            self.frozen_network = self._initialize_network(img_input=self._inputs["S1"], **architecture)
-
+            self.network, self.input_layers = self._initialize_network(img_input=self._inputs["S0"], **architecture)
+            self.frozen_network, _ = self._initialize_network(img_input=self._inputs["S1"], **architecture)
+            self._alternate_inputs = {
+                self.input_layers[0]: self._inputs["S1"]
+            }
         # print "Network initialized."
         self._learning_rate = learning_rate
-        self._compile()
+        self._compile(ddqn)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
 
+        input_layers = []
         # weights_init = lasagne.init.GlorotUniform("relu")
         weights_init = lasagne.init.HeNormal("relu")
 
         network = ls.InputLayer(shape=img_input_shape, input_var=img_input)
-
+        input_layers.append(network)
         network = ls.Conv2DLayer(network, num_filters=32, filter_size=8, nonlinearity=rectify, W=weights_init,
-                                 b=lasagne.init.Constant(.1), stride=4)
+                                 b=lasagne.init.Constant(0.1), stride=4)
         network = ls.Conv2DLayer(network, num_filters=64, filter_size=4, nonlinearity=rectify, W=weights_init,
-                                 b=lasagne.init.Constant(.1), stride=2)
+                                 b=lasagne.init.Constant(0.1), stride=2)
         network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
-                                 b=lasagne.init.Constant(.1), stride=1)
+                                 b=lasagne.init.Constant(0.1), stride=1)
 
         if self._misc_state_included:
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
+            input_layers.append(misc_input_layer)
             network = ls.ConcatLayer([network, misc_input_layer])
 
         network = ls.DenseLayer(network, 512, nonlinearity=rectify,
-                                W=weights_init, b=lasagne.init.Constant(.1))
+                                W=weights_init, b=lasagne.init.Constant(0.1))
 
         network = ls.DenseLayer(network, output_size, nonlinearity=None, b=lasagne.init.Constant(.1))
-        return network
+        return network, input_layers
 
-    def _compile(self):
+    def _compile(self, ddqn):
 
         a = self._inputs["A"]
         r = self._inputs["R"]
-
-        q = ls.get_output(self.network, deterministic=False)
-        deterministic_q = ls.get_output(self.network, deterministic=True)
-
-        q2 = tensor.max(ls.get_output(self.frozen_network, deterministic=True), axis=1, keepdims=True)
-
         nonterminal = self._inputs["Nonterminal"]
-        target_q = r + self._gamma * nonterminal * q2
+
+        q = ls.get_output(self.network, deterministic=True)
+
+        if ddqn:
+            q2 = ls.get_output(self.network, deterministic=True, inputs=self._alternate_inputs)
+            q2_action_ref = tensor.argmax(q2, axis=1)
+
+            q2_frozen = ls.get_output(self.frozen_network, deterministic=True)
+            q2_max = q2_frozen[tensor.arange(q2_action_ref.shape[0]), q2_action_ref]
+        else:
+            q2_max = tensor.max(ls.get_output(self.frozen_network, deterministic=True), axis=1)
+
+        target_q = r + self._gamma * nonterminal * q2_max
 
         # Loss
         abs_err = abs(q[tensor.arange(q.shape[0]), a] - target_q)
         quadratic_part = tensor.minimum(abs_err, 1)
         linear_part = abs_err - quadratic_part
-        loss = (0.5 * quadratic_part ** 2 + linear_part).mean()
+        loss = (0.5 * quadratic_part ** 2 + linear_part).sum()
+
+        # loss = lasagne.objectives.squared_error(q[tensor.arange(q.shape[0]), a],target_q).mean()
 
         params = ls.get_all_params(self.network, trainable=True)
 
         # updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
         updates = deepmind_rmsprop(loss, params, self._learning_rate)
 
-        # TODO find out why this mode causes problems with misc vector
-        # mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
-        mode = None
+        # TODO does FAST_RUN speed anything up?
+        mode = None #"FAST_RUN"
 
         s0_img = self._inputs["S0"]
         s1_img = self._inputs["S1"]
@@ -140,26 +169,19 @@ class DQN:
             s1_misc = self._inputs["S1_misc"]
             self._learn = theano.function([s0_img, s0_misc, s1_img, s1_misc, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
-            self._evaluate = theano.function([s0_img, s0_misc], deterministic_q, mode=mode,
+            self._evaluate = theano.function([s0_img, s0_misc], q, mode=mode,
                                              name="eval_fn")
         else:
             self._learn = theano.function([s0_img, s1_img, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
-            self._evaluate = theano.function([s0_img], deterministic_q, mode=mode, name="eval_fn")
+            self._evaluate = theano.function([s0_img], q, mode=mode, name="eval_fn")
 
     def learn(self, transitions):
-        # Learning approximation: Q(s1,t+1) = r + nonterminal *Q(s2,t)
-
-        X = transitions["s1_img"]
-        X2 = transitions["s2_img"]
-
+        t = transitions
         if self._misc_state_included:
-            X_misc = transitions["s1_misc"]
-            X2_misc = transitions["s2_misc"]
-            loss = self._learn(X, X_misc, X2, X2_misc, transitions["a"], transitions["r"], transitions["nonterminal"])
+            loss = self._learn(t["s1_img"], t["s1_misc"], t["s2_img"], t["s2_misc"], t["a"], t["r"], t["nonterminal"])
         else:
-            loss = self._learn(X, X2, transitions["a"], transitions["r"], transitions["nonterminal"])
-
+            loss = self._learn(t["s1_img"], t["s2_img"], t["a"], t["r"], t["nonterminal"])
         self._loss_history.append(loss)
 
     def estimate_best_action(self, state):
@@ -184,3 +206,39 @@ class DQN:
     def melt(self):
         ls.set_all_param_values(self.frozen_network, ls.get_all_param_values(self.network))
 
+
+class DuellingDQN(DQN):
+    def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
+        input_layers = []
+        # weights_init = lasagne.init.GlorotUniform("relu")
+        weights_init = lasagne.init.HeNormal("relu")
+
+        network = ls.InputLayer(shape=img_input_shape, input_var=img_input)
+        input_layers.append(network)
+        network = ls.Conv2DLayer(network, num_filters=32, filter_size=8, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(.1), stride=4)
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=4, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(.1), stride=2)
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(.1), stride=1)
+
+        if self._misc_state_included:
+            network = ls.FlattenLayer(network)
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
+            input_layers.append(misc_input_layer)
+            network = ls.ConcatLayer([network, misc_input_layer])
+
+        # Duelling here
+
+        advanteges_branch = ls.DenseLayer(network, 256, nonlinearity=rectify,
+                                          W=weights_init, b=lasagne.init.Constant(.1))
+        advanteges_branch = ls.DenseLayer(advanteges_branch, output_size, nonlinearity=None,
+                                          b=lasagne.init.Constant(.1))
+
+        state_value_branch = ls.DenseLayer(network, 256, nonlinearity=rectify,
+                                           W=weights_init, b=lasagne.init.Constant(.1))
+        state_value_branch = ls.DenseLayer(state_value_branch, 1, nonlinearity=None,
+                                           b=lasagne.init.Constant(.1))
+
+        network = DuellingMergeLayer([advanteges_branch, state_value_branch])
+        return network, input_layers

@@ -31,11 +31,26 @@ class QEngine:
         self.setup["steps"] = self._steps
         self.setup["skiprate"] = self._skiprate
 
-    def _initialize(self, game, network_args=None, actions=None, history_length=4, batchsize=64, update_pattern=(1, 1),
-                    replay_memory_size=10000, backprop_start_step=10000, start_epsilon=1.0, end_epsilon=0.1,
-                    epsilon_decay_start_step=50000, epsilon_decay_steps=100000, reward_scale=1.0, misc_scale=None,
-                    reshaped_x=None, reshaped_y=None, skiprate=4, shaping_on=False, count_states=False, name=None,
-                    type="cnn", frozen_steps=10000, remember_n_actions=0):
+    # TODO why the fuck isn't it in init?
+    def _initialize(self, game, network_args=None, actions=None,
+                    history_length=4,
+                    batchsize=64,
+                    update_pattern=(1, 1),
+                    replay_memory_size=10000,
+                    backprop_start_step=10000, start_epsilon=1.0,
+                    end_epsilon=0.1,
+                    epsilon_decay_start_step=50000,
+                    epsilon_decay_steps=100000,
+                    reward_scale=1.0,
+                    use_game_variables=True,
+                    misc_scale=None,
+                    reshaped_x=None,
+                    reshaped_y=None,
+                    skiprate=4,
+                    shaping_on=False,
+                    count_states=False,
+                    name=None,
+                    net_type="cnn", melt_steps=10000, remember_n_actions=0):
 
         if network_args is None:
             network_args = dict()
@@ -56,8 +71,10 @@ class QEngine:
         self._skiprate = max(skiprate, 0)
         self._shaping_on = shaping_on
         self._steps = 0
-        self._frozen_steps = frozen_steps
+        self._melt_steps = melt_steps
         self._backprop_start_step = max(backprop_start_step, batchsize)
+        self._use_game_variables = use_game_variables
+        self._last_action_index = 0
 
         if self._shaping_on:
             self._last_shaping_reward = 0
@@ -107,11 +124,14 @@ class QEngine:
                     # new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
                     new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
-
         self._convert_image = convert
 
-        single_state_misc_len = game.get_available_game_variables_size() + self._count_states
+        if self._use_game_variables:
+            single_state_misc_len = game.get_available_game_variables_size() + int(self._count_states)
+        else:
+            single_state_misc_len = int(self._count_states)
         self._single_state_misc_len = single_state_misc_len
+
         self._remember_n_actions = remember_n_actions
         if remember_n_actions > 0:
             self._remember_n_actions = remember_n_actions
@@ -142,8 +162,10 @@ class QEngine:
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self._actions)
 
-        if type in ("dqn", None, ""):
+        if net_type in ("dqn", None, ""):
             self._evaluator = DQN(**network_args)
+        elif net_type == "duelling":
+            self._evaluator = DuellingDQN(**network_args)
         else:
             print "Unsupported evaluator type."
             exit(1)
@@ -159,11 +181,12 @@ class QEngine:
         if self._single_state_misc_len > 0:
             state_misc = self._state_misc_buffer
 
+            if self._use_game_variables:
+                game_variables = raw_state.game_variables.astype(np.float32)
+                state_misc[0:len(game_variables)] = game_variables
+
             if self._count_states:
-                state_misc[0:-1] = np.float32(raw_state.game_variables)
                 state_misc[-1] = raw_state.number
-            else:
-                state_misc[:] = np.float32(raw_state.game_variables)
 
             if self._misc_scale is not None:
                 state_misc = state_misc * self._misc_scale
@@ -174,9 +197,11 @@ class QEngine:
             self._current_image_state[-pure_channels:] = img
 
             if self._single_state_misc_len > 0:
-                self._current_misc_state[:-len(state_misc)] = self._current_misc_state[len(state_misc):]
-                a = len(self._current_misc_state)
-                self._current_misc_state[a - len(state_misc):a] = state_misc
+                misc_len = len(state_misc)
+                hist = self._history_length
+                self._current_misc_state[0:(hist - 1) * misc_len] = self._current_misc_state[misc_len:hist * misc_len]
+
+                self._current_misc_state[(hist - 1) * misc_len:hist * misc_len] = state_misc
 
         else:
             self._current_image_state[:] = img
@@ -187,6 +212,7 @@ class QEngine:
             self._last_n_actions[:-self._action_len] = self._last_n_actions[self._action_len:]
             self._last_n_actions[-self._action_len:] = self._actions[self._last_action_index]
             self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
+
 
     def new_episode(self, update_state=False):
         self._game.new_episode()
@@ -277,17 +303,16 @@ class QEngine:
             self._transitions.add_transition(s, a, s2, r, terminal=True)
         else:
             self._update_state()
-            # copy is not needed becuase something magical TODO check it
             s2 = self._current_state()
-            self._transitions.add_transition(s, a, s2, r)
+            self._transitions.add_transition(s, a, s2, r, terminal=False)
 
         # Perform q-learning once for a while
         if self._transitions.size >= self._backprop_start_step and self._steps % self._update_pattern[0] == 0:
-            for _ in xrange(self._update_pattern[1]):
+            for a in xrange(self._update_pattern[1]):
                 self._evaluator.learn(self._transitions.get_sample())
 
         # Melt the network sometimes
-        if self._steps % self._frozen_steps == 0:
+        if self._steps % self._melt_steps == 0:
             self._evaluator.melt()
 
     # Adds a transition to the bank.

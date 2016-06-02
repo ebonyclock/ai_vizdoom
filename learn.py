@@ -12,8 +12,8 @@ from util import *
 setup = dqn_predict
 training_steps_per_epoch = 200000
 test_episodes_per_epoch = 300
-save_params = False
-save_results = False
+save_params = True
+save_results = True
 
 epochs = np.inf
 config_loadfile = None
