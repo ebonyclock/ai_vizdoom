@@ -19,13 +19,14 @@ game.load_config(config_file)
 game.set_window_visible(True)
 
 game.set_screen_format(ScreenFormat.GRAY8)
+#game.set_screen_resolution(ScreenResolution.RES_320X240)
 
 print "Initializing DOOM ..."
 game.init()
 print "\nDOOM initialized."
 
 engine = QEngine.load(game, agent_loadfile)
-print engine._skiprate
+print engine.setup
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
     print p.shape

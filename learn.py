@@ -8,8 +8,7 @@ from tqdm import trange
 from agents import *
 from util import *
 
-
-setup = dqn_predict
+setup = health_supreme
 training_steps_per_epoch = 200000
 test_episodes_per_epoch = 300
 save_params = True
@@ -17,7 +16,7 @@ save_results = True
 
 epochs = np.inf
 config_loadfile = None
-
+best_result_so_far = None
 
 results_loadfile = None
 params_loadfile = None
@@ -36,7 +35,8 @@ if load_params:
     game = initialize_doom(config_loadfile, True)
     engine = QEngine.load(game, params_loadfile)
 else:
-    game, engine = setup()
+    engine = setup()
+    game = engine.game
     basefile = engine.name
     params_savefile = "params/" + basefile
     results_savefile = "results/" + basefile + ".res"
@@ -46,6 +46,7 @@ epoch = 0
 if load_results:
     results = pickle.load(open(results_loadfile, "r"))
     epoch = results["epoch"][-1] + 1
+    best_result_so_far = results["best"]
 else:
     if save_results:
         results = dict()
@@ -60,6 +61,7 @@ else:
         results["training_episodes_finished"] = []
         results["loss"] = []
         results["setup"] = engine.setup
+        results["best"] = None
 
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
@@ -132,8 +134,12 @@ while epoch < epochs:
         print "Test results:"
         print engine.get_actions_stats(clear=True, norm=False).reshape([-1, 4])
         rewards = np.array(rewards)
+        best_result_so_far = max(best_result_so_far,rewards.mean())
         print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
         print "t:", sec_to_str(end - start)
+        print "Best so far:", best_result_so_far
+
+
 
     overall_end = time()
     overall_time = overall_end - overall_start
@@ -150,6 +156,7 @@ while epoch < epochs:
         results["epsilon"].append(engine.get_epsilon())
         results["training_episodes_finished"].append(train_episodes_finished)
         results["loss"].append(mean_loss)
+        results["best"] = best_result_so_far
         res_f = open(results_savefile, 'w')
         pickle.dump(results, res_f)
         res_f.close()

@@ -1,5 +1,6 @@
 from qengine import *
 
+
 def initialize_doom(config_file, grayscale=True):
     doom = DoomGame()
     doom.load_config("common.cfg")
@@ -12,7 +13,7 @@ def initialize_doom(config_file, grayscale=True):
     return doom
 
 
-def dqn_predict():
+def predict():
     game = initialize_doom("config/predict_position.cfg")
     network_args = {
         "ddqn": True
@@ -22,7 +23,7 @@ def dqn_predict():
         "reshaped_y": 84,
         "remember_n_actions": 4,
         "skiprate": 3,
-        "name": "predict2_ddqn",
+        "name": "predict2_duelling",
         "net_type": "duelling",
         "melt_steps": 10000,
         "epsilon_decay_steps": 500000,
@@ -31,7 +32,129 @@ def dqn_predict():
         "start_epsilon": 1.0,
         "update_pattern": (4, 1),
         "backprop_start_step": 10000,
-        "replay_memory_size": 50000
+        "replay_memory_size": 20000
     }
-    return game, QEngine(game=game, network_args=network_args, **engine_args)
+    return QEngine(game=game, network_args=network_args, **engine_args)
 
+def predict_supreme():
+    game = initialize_doom("config/predict_position_supreme.cfg")
+    network_args = {
+        "ddqn": True,
+        #"gamma": 1
+    }
+    engine_args = {
+        "name": "predict_s_dueling_count",
+        "net_type": "dueling",
+        "reshaped_x": 100,
+        "reshaped_y": 75,
+        "skiprate": 3,
+
+        "remember_n_actions": 4,
+        "count_states": True,
+        #"use_game_variables": True,
+        "shaping_on": False,
+
+        "melt_steps": 10000,
+        "epsilon_decay_steps": 500000,
+        "epsilon_decay_start_step": 0,
+        "start_epsilon": 1.0,
+        "end_epsilon": 0.005,
+
+        "update_pattern": (4, 1),
+        "backprop_start_step": 10000,
+        "replay_memory_size": 20000,
+        #"misc_scale": [3/2100.0]
+    }
+    return QEngine(game=game, network_args=network_args, **engine_args)
+
+
+def health_supreme():
+    game = initialize_doom("config/health_gathering_supreme.cfg")
+    network_args = {
+        "ddqn": True,
+        "gamma": 1
+    }
+    engine_args = {
+        "name": "health_s_dueling_skip3_miscscale_x100_gamma1",
+        "net_type": "dueling",
+        "reshaped_x": 100,
+        "reshaped_y": 75,
+        "skiprate": 3,
+
+        "remember_n_actions": 4,
+        "count_states": True,
+        "use_game_variables": True,
+        "shaping_on": True,
+
+        "melt_steps": 10000,
+        "epsilon_decay_steps": 500000,
+        "epsilon_decay_start_step": 0,
+        "start_epsilon": 1.0,
+        "end_epsilon": 0.005,
+
+        "update_pattern": (4, 1),
+        "backprop_start_step": 10000,
+        "replay_memory_size": 20000,
+        "misc_scale": [0.01, 7/2100.0]
+    }
+    return QEngine(game=game, network_args=network_args, **engine_args)
+
+
+def defend_the_center():
+    game = initialize_doom("config/defend_the_center.cfg")
+    network_args = {
+        "ddqn": True
+    }
+    engine_args = {
+        "name": "center_up4_dueling",
+        "net_type": "dueling",
+        "reshaped_x": 84,
+        "reshaped_y": 84,
+        "skiprate": 3,
+
+        "remember_n_actions": 4,
+        "count_states": False,
+        "use_game_variables": True,
+
+        "melt_steps": 10000,
+        "epsilon_decay_steps": 500000,
+        "epsilon_decay_start_step": 0,
+        "start_epsilon": 1.0,
+        "end_epsilon": 0.005,
+
+        "update_pattern": (4, 1),
+        "backprop_start_step": 10000,
+        "replay_memory_size": 10000,
+    }
+    return QEngine(game=game, network_args=network_args, **engine_args)
+
+
+def pacman():
+    game = initialize_doom("config/pacman.cfg")
+    network_args = {
+        "ddqn": True
+    }
+    engine_args = {
+        "name": "pacman_dueling",
+        "net_type": "dueling",
+        "reshaped_x": 100,
+        "reshaped_y": 75,
+        "skiprate": 3,
+
+        "remember_n_actions": 4,
+        "count_states": True,
+        "use_game_variables": True,
+        "shaping_on": True,
+
+        "melt_steps": 10000,
+        "epsilon_decay_steps": 500000,
+        "epsilon_decay_start_step": 0,
+        "start_epsilon": 1.0,
+        "end_epsilon": 0.005,
+
+        "update_pattern": (4, 1),
+        "backprop_start_step": 10000,
+        "replay_memory_size": 20000,
+        "misc_scale": [0.01, 7/2100.0]
+    }
+    return QEngine(game=game, network_args=network_args, **engine_args)

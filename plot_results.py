@@ -21,13 +21,13 @@ if targets is not None:
         plt.plot(d[target], label=target)
 
 else:
-    plt.plot(d["max"], 'g-', label="max")
-    plt.plot(d["mean"], 'b-', label="mean")
-    plt.plot(d["min"], 'r-', label="min")
+    plt.plot(d["max"], 'go-', label="max")
+    plt.plot(d["mean"], 'bo-', label="mean")
+    plt.plot(d["min"], 'ro-', label="min")
     plt.plot(d["std"], '-', label="std", color="black")
-legend = plt.legend(loc='upper left')
-for legobj in legend.legendHandles:
-    legobj.set_linewidth(3.0)
+legend = plt.legend(loc='upper left',fancybox=True, shadow=True).draggable()
+
+
 
 plt.show()
 #plt.savefig("defend_the_line.pdf")

@@ -207,7 +207,7 @@ class DQN:
         ls.set_all_param_values(self.frozen_network, ls.get_all_param_values(self.network))
 
 
-class DuellingDQN(DQN):
+class DuelingDQN(DQN):
     def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
         input_layers = []
         # weights_init = lasagne.init.GlorotUniform("relu")
