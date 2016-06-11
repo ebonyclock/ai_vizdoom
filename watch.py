@@ -14,6 +14,7 @@ if len(sys.argv) > 1:
 
 game = DoomGame()
 game.load_config("common.cfg")
+game.set_sound_enabled(True)
 game.load_config(config_file)
 
 game.set_window_visible(True)
