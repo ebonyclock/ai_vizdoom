@@ -8,7 +8,7 @@ from tqdm import trange
 from agents import *
 from util import *
 
-setup = health_supreme
+setup = health
 training_steps_per_epoch = 200000
 test_episodes_per_epoch = 300
 save_params = True
@@ -42,11 +42,13 @@ else:
     results_savefile = "results/" + basefile + ".res"
 
 results = None
-epoch = 0
+epoch = 1
 if load_results:
     results = pickle.load(open(results_loadfile, "r"))
     epoch = results["epoch"][-1] + 1
     best_result_so_far = results["best"]
+    if "actions" not in results:
+        results["actions"] = []
 else:
     if save_results:
         results = dict()
@@ -62,6 +64,7 @@ else:
         results["loss"] = []
         results["setup"] = engine.setup
         results["best"] = None
+        results["actions"] = []
 
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):
@@ -85,7 +88,7 @@ if results_loadfile and len(results["time"]) > 0:
 # Training starts here!
 
 
-while epoch < epochs:
+while epoch-1 < epochs:
     print "\nEpoch", epoch
     train_time = 0
     train_episodes_finished = 0
@@ -157,6 +160,7 @@ while epoch < epochs:
         results["training_episodes_finished"].append(train_episodes_finished)
         results["loss"].append(mean_loss)
         results["best"] = best_result_so_far
+        results["actions"].append(engine.steps)
         res_f = open(results_savefile, 'w')
         pickle.dump(results, res_f)
         res_f.close()

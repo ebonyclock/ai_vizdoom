@@ -14,7 +14,7 @@ filename = sys.argv[1]
 
 for target in sys.argv[1:]:
     d = pickle.load(open(target, "r"))
-    plt.plot(d["mean"], label=target[17:-4])
+    plt.plot(d["mean"], label=target)
 
 legend = plt.legend(loc='lower right',fancybox=True, shadow=True,prop={'size':10}).draggable()
 #for legobj in legend.legendHandles:
