@@ -1,6 +1,7 @@
 import itertools as it
 import pickle
 import random
+from math import log, floor
 from time import sleep
 from vizdoom import *
 
@@ -14,6 +15,7 @@ from replay_memory import ReplayMemory
 
 def generate_default_actions(the_game):
     n = the_game.get_available_buttons_size()
+
     actions = []
     for perm in it.product([0, 1], repeat=n):
         actions.append(list(perm))
@@ -52,6 +54,7 @@ class QEngine:
                     count_states=False,
                     use_game_variables=True,
                     remember_n_actions=4,
+                    one_hot=False,
 
                     misc_scale=None,
                     ):
@@ -77,15 +80,15 @@ class QEngine:
         self.steps = 0
         self.melt_steps = melt_steps
         self.backprop_start_step = max(backprop_start_step, batchsize)
-        if game.get_available_game_variables_size()>0 and use_game_variables:
+        self.one_hot = one_hot
+
+        if game.get_available_game_variables_size() > 0 and use_game_variables:
             self.use_game_variables = True
         else:
             self.use_game_variables = False
 
-        self.last_action_index = 0
-
         if self.shaping_on:
-            self._last_shaping_reward = 0
+            self.last_shaping_reward = 0
 
         self.learning_mode = True
 
@@ -95,6 +98,7 @@ class QEngine:
             self.actions = actions
 
         self.actions_num = len(self.actions)
+
         self.actions_stats = np.zeros([self.actions_num], np.int)
 
         # changes img_shape according to the history size
@@ -132,21 +136,25 @@ class QEngine:
                     # new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
                     new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
-        self._convert_image = convert
+        self.convert_image_fun = convert
 
         if self.use_game_variables:
             single_state_misc_len = game.get_available_game_variables_size() + int(self._count_states)
         else:
             single_state_misc_len = int(self._count_states)
-        self._single_state_misc_len = single_state_misc_len
+        self.single_state_misc_len = single_state_misc_len
 
-        self._remember_n_actions = remember_n_actions
+        self.remember_n_actions = remember_n_actions
         if remember_n_actions > 0:
-            self._remember_n_actions = remember_n_actions
-            self._action_len = len(self.actions[0])
+            self.remember_n_actions = remember_n_actions
+            if self.one_hot:
+                self._action_len = int(2 ** floor(log(len(self.actions), 2)))
+            else:
+                self._action_len = len(self.actions[0])
+            self.last_action = np.zeros([self._action_len], dtype=np.float32)
             self._last_n_actions = np.zeros([remember_n_actions * self._action_len], dtype=np.float32)
             self._total_misc_len = single_state_misc_len * self.history_length + len(self._last_n_actions)
-            self.last_action_index = 0
+
         else:
             self._total_misc_len = single_state_misc_len * self.history_length
 
@@ -183,10 +191,10 @@ class QEngine:
 
     def _update_state(self):
         raw_state = self.game.get_state()
-        img = self._convert_image(raw_state.image_buffer)
+        img = self.convert_image_fun(raw_state.image_buffer)
         state_misc = None
 
-        if self._single_state_misc_len > 0:
+        if self.single_state_misc_len > 0:
             state_misc = self._state_misc_buffer
 
             if self.use_game_variables:
@@ -204,7 +212,7 @@ class QEngine:
             self._current_image_state[0:-pure_channels] = self._current_image_state[pure_channels:]
             self._current_image_state[-pure_channels:] = img
 
-            if self._single_state_misc_len > 0:
+            if self.single_state_misc_len > 0:
                 misc_len = len(state_misc)
                 hist = self.history_length
                 self._current_misc_state[0:(hist - 1) * misc_len] = self._current_misc_state[misc_len:hist * misc_len]
@@ -213,21 +221,28 @@ class QEngine:
 
         else:
             self._current_image_state[:] = img
-            if self._single_state_misc_len > 0:
+            if self.single_state_misc_len > 0:
                 self._current_misc_state[0:len(state_misc)] = state_misc
 
-        if self._remember_n_actions:
+        if self.remember_n_actions:
             self._last_n_actions[:-self._action_len] = self._last_n_actions[self._action_len:]
-            self._last_n_actions[-self._action_len:] = self.actions[self.last_action_index]
-            self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
 
+            self._last_n_actions[-self._action_len:] = self.last_action
+            self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
 
     def new_episode(self, update_state=False):
         self.game.new_episode()
         self.reset_state()
-        self._last_shaping_reward = 0
+        self.last_shaping_reward = 0
         if update_state:
             self._update_state()
+
+    def set_last_action(self, index):
+        if self.one_hot:
+            self.last_action.fill(0)
+            self.last_action[index] = 1
+        else:
+            self.last_action[:] = self.actions[index]
 
     # Return current state including history
     def _current_state(self):
@@ -248,10 +263,11 @@ class QEngine:
     # Sets the whole state to zeros. 
     def reset_state(self):
         self._current_image_state.fill(0.0)
-        self.last_action_index = 0
+
         if self._misc_state_included:
             self._current_misc_state.fill(0.0)
-            if self._remember_n_actions > 0:
+            if self.remember_n_actions > 0:
+                self.set_last_action(0)
                 self._last_n_actions.fill(0)
 
     def make_step(self):
@@ -260,7 +276,8 @@ class QEngine:
         a = self._evaluator.estimate_best_action(self._current_state_copy())
         self.actions_stats[a] += 1
         self.game.make_action(self.actions[a], self.skiprate + 1)
-        self.last_action_index = a
+        if self.remember_n_actions:
+            self.set_last_action(a)
 
     def make_sleep_step(self, sleep_time=1 / 35.0):
         self._update_state()
@@ -268,7 +285,8 @@ class QEngine:
         self.actions_stats[a] += 1
 
         self.game.set_action(self.actions[a])
-        self.last_action_index = a
+        if self.remember_n_actions:
+            self.set_last_action(a)
         for i in xrange(self.skiprate):
             self.game.advance_action(1, False, True)
             sleep(sleep_time)
@@ -294,13 +312,15 @@ class QEngine:
         self.actions_stats[a] += 1
 
         # make action and get the reward
-        self.last_action_index = a
+        if self.remember_n_actions:
+            self.set_last_action(a)
+
         r = self.game.make_action(self.actions[a], self.skiprate + 1)
         r = np.float32(r)
         if self.shaping_on:
             sr = np.float32(doom_fixed_to_double(self.game.get_game_variable(GameVariable.USER1)))
-            r += sr - self._last_shaping_reward
-            self._last_shaping_reward = sr
+            r += sr - self.last_shaping_reward
+            self.last_shaping_reward = sr
 
         r *= self.reward_scale
 
@@ -322,7 +342,6 @@ class QEngine:
         # Melt the network sometimes
         if self.steps % self.melt_steps == 0:
             self._evaluator.melt()
-
 
     # Adds a transition to the bank.
     def add_transition(self, s, a, s2, r, terminal):
