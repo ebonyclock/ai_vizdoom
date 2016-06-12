@@ -26,7 +26,7 @@ print "Initializing DOOM ..."
 game.init()
 print "\nDOOM initialized."
 
-engine = QEngine.load(game, agent_loadfile)
+engine = QEngine.load(agent_loadfile, game=game )
 print engine.setup
 print "\nNetwork architecture:"
 for p in get_all_param_values(engine.get_network()):

@@ -22,11 +22,24 @@ def generate_default_actions(the_game):
     return actions
 
 
+def initialize_doom(config_file, grayscale=True):
+    doom = DoomGame()
+    doom.load_config("common.cfg")
+    doom.load_config(config_file)
+    if grayscale:
+        doom.set_screen_format(ScreenFormat.GRAY8)
+    print "Initializing DOOM ..."
+    doom.init()
+    print "DOOM initialized."
+    return doom
+
+
 class QEngine:
     def __init__(self, **kwargs):
         self.setup = kwargs
         self._initialize(**kwargs)
-        del kwargs["game"]
+        if "game" in kwargs:
+            del kwargs["game"]
 
     def _prepare_for_save(self):
         self.setup["epsilon"] = self.epsilon
@@ -34,7 +47,7 @@ class QEngine:
         self.setup["skiprate"] = self.skiprate
 
     # TODO why the fuck isn't it in init?
-    def _initialize(self, game, network_args=None, actions=None, name=None, net_type="dqn",
+    def _initialize(self, game=None, network_args=None, actions=None, name=None, net_type="dqn",
                     reshaped_x=None,
                     reshaped_y=None,
                     skiprate=3,
@@ -57,8 +70,20 @@ class QEngine:
                     one_hot=False,
 
                     misc_scale=None,
+                    results_file=None,
+                    params_file=None,
+                    config_file=None
+
                     ):
 
+        if game is not None:
+            self.game = game
+            self.config_file = None
+        elif config_file is not None:
+            self.config_file = config_file
+            self.game = initialize_doom(self.config_file)
+        else:
+            raise Exception("No game, no config file. Dunno how to initialize doom.")
         if network_args is None:
             network_args = dict()
         if count_states is not None:
@@ -66,7 +91,7 @@ class QEngine:
 
         self.name = name
         self.reward_scale = reward_scale
-        self.game = game
+
         self.batchsize = batchsize
         self.history_length = max(history_length, 1)
         self.update_pattern = update_pattern
@@ -82,7 +107,16 @@ class QEngine:
         self.backprop_start_step = max(backprop_start_step, batchsize)
         self.one_hot = one_hot
 
-        if game.get_available_game_variables_size() > 0 and use_game_variables:
+        if results_file:
+            self.results_file = results_file
+        else:
+            self.results_file = "results/" + name + ".res"
+        if params_file:
+            self.params_file = params_file
+        else:
+            self.params_file = "params/" + name + ".res"
+
+        if self.game.get_available_game_variables_size() > 0 and use_game_variables:
             self.use_game_variables = True
         else:
             self.use_game_variables = False
@@ -93,7 +127,7 @@ class QEngine:
         self.learning_mode = True
 
         if actions is None:
-            self.actions = generate_default_actions(game)
+            self.actions = generate_default_actions(self.game)
         else:
             self.actions = actions
 
@@ -102,24 +136,24 @@ class QEngine:
         self.actions_stats = np.zeros([self.actions_num], np.int)
 
         # changes img_shape according to the history size
-        self._channels = game.get_screen_channels()
+        self._channels = self.game.get_screen_channels()
         if self.history_length > 1:
             self._channels *= self.history_length
 
         if reshaped_x is None:
-            x = game.get_screen_width()
-            y = game.get_screen_height()
+            x = self.game.get_screen_width()
+            y = self.game.get_screen_height()
             scale_x = scale_y = 1.0
         else:
             x = reshaped_x
-            scale_x = float(x) / game.get_screen_width()
+            scale_x = float(x) / self.game.get_screen_width()
 
             if reshaped_y is None:
-                y = int(game.get_screen_height() * scale_x)
+                y = int(self.game.get_screen_height() * scale_x)
                 scale_y = scale_x
             else:
                 y = reshaped_y
-                scale_y = float(y) / game.get_screen_height()
+                scale_y = float(y) / self.game.get_screen_height()
 
         img_shape = [self._channels, y, x]
 
@@ -139,7 +173,7 @@ class QEngine:
         self.convert_image_fun = convert
 
         if self.use_game_variables:
-            single_state_misc_len = game.get_available_game_variables_size() + int(self._count_states)
+            single_state_misc_len = self.game.get_available_game_variables_size() + int(self._count_states)
         else:
             single_state_misc_len = int(self._count_states)
         self.single_state_misc_len = single_state_misc_len
@@ -322,7 +356,8 @@ class QEngine:
             r += sr - self.last_shaping_reward
             self.last_shaping_reward = sr
 
-        r *= self.reward_scale
+        if self.reward_scale is not None:
+            r *= self.reward_scale
 
         # update state s2 accordingly
         if self.game.is_episode_finished():
@@ -412,25 +447,52 @@ class QEngine:
 
             # Loads the whole engine with params from file
 
+    def get_network_architecture(self):
+        return get_all_param_values(self.get_network())
+
+    def print_setup(self):
+        print "\nNetwork architecture:"
+        for p in self.get_network_architecture():
+            print p.shape
+        print "\n*** Engine setup ***"
+        for k in self.setup.keys():
+            if k == "network_args":
+                print"network_args:"
+                net_args = self.setup[k]
+                for k2 in net_args.keys():
+                    print "\t", k2, ":", net_args[k2]
+            else:
+                print k, ":", self.setup[k]
+
     @staticmethod
-    def load(game, filename, quiet=False):
+    def load(filename, game=None, config_file=None, quiet=False):
         if not quiet:
             print "Loading qengine from " + filename + "..."
 
         params = pickle.load(open(filename, "rb"))
 
         qengine_args = params[0]
-        network_params = params[1]
+        network_weights = params[1]
 
         steps = qengine_args["steps"]
         epsilon = qengine_args["epsilon"]
         del (qengine_args["epsilon"])
         del (qengine_args["steps"])
-        qengine_args["game"] = game
+        if game is None:
+            if config_file is not None:
+                game = initialize_doom(config_file)
+                qengine_args["config_file"] = config_file
+            elif qengine_args["config_file"] is not None:
+                game = initialize_doom(qengine_args["config_file"])
+            else:
+                raise Exception("No game, no config file. Dunno how to initialize doom.")
+        else:
+            qengine_args["config_file"] = None
 
+        qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
-        set_all_param_values(qengine._evaluator.network, network_params)
-        set_all_param_values(qengine._evaluator.frozen_network, network_params)
+        set_all_param_values(qengine._evaluator.network, network_weights)
+        set_all_param_values(qengine._evaluator.frozen_network, network_weights)
 
         if not quiet:
             print "Loading finished."

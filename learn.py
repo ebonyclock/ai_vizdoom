@@ -2,13 +2,16 @@
 
 import sys
 from time import time
-
 from tqdm import trange
-
-from agents import *
+import agents
 from util import *
+import numpy as np
+import pickle
+from qengine import QEngine
 
-setup = health
+
+setup = getattr(agents, 'predict_supreme')
+
 training_steps_per_epoch = 200000
 test_episodes_per_epoch = 300
 save_params = True
@@ -17,6 +20,7 @@ save_results = True
 epochs = np.inf
 config_loadfile = None
 best_result_so_far = None
+save_best = True
 
 results_loadfile = None
 params_loadfile = None
@@ -32,8 +36,7 @@ if len(sys.argv) > 3:
     results_savefile = results_loadfile
 
 if load_params:
-    game = initialize_doom(config_loadfile, True)
-    engine = QEngine.load(game, params_loadfile)
+    engine = QEngine.load( params_loadfile)
 else:
     engine = setup()
     game = engine.game
@@ -66,20 +69,8 @@ else:
         results["best"] = None
         results["actions"] = []
 
-print "\nNetwork architecture:"
-for p in get_all_param_values(engine.get_network()):
-    print p.shape
-print "\nEngine setup:"
-for k in engine.setup.keys():
-    if k == "network_args":
-        print"network_args:"
-        net_args = engine.setup[k]
-        for k2 in net_args.keys():
-            print "\t",k2,":",net_args[k2]
-    else:
-        print k,":",engine.setup[k]
-print
-print "============================"
+engine.print_setup()
+print "\n============================"
 
 test_frequency = 1
 overall_start = time()

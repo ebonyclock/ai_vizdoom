@@ -16,7 +16,7 @@ results/*
 *.res
 **.bak
 vizdoom
-vizdoom.ini
+_vizdoom.ini
 wads
 config
 show_filters_rgb.py
