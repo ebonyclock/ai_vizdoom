@@ -36,7 +36,10 @@ if agent_loadfile:
     engine = QEngine.load(agent_loadfile, config_file=config_loadfile)
     results = pickle.load(open(engine.results_file), "r")
 else:
-    engine = setup()
+    if args.name is not None:
+        engine = setup(args.name)
+    else:
+        engine = setup()
     game = engine.game
 
     if save_results:
