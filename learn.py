@@ -1,58 +1,44 @@
 #!/usr/bin/python
 
-import sys
-from time import time
-from tqdm import trange
-import agents
-from util import *
-import numpy as np
 import pickle
+from time import time
+import numpy as np
+import agents
+from args_parser import build_learn_parser
 from qengine import QEngine
+from util import *
 
+params_parser = build_learn_parser()
+args = params_parser.parse_args()
 
-setup = getattr(agents, 'predict_supreme')
+if args.agent is not None:
+    setup = getattr(agents, args.agent)
 
-training_steps_per_epoch = 200000
-test_episodes_per_epoch = 300
-save_params = True
-save_results = True
-
-epochs = np.inf
-config_loadfile = None
+training_steps_per_epoch = args.train_steps
+epochs = args.epochs
+test_episodes_per_epoch = args.test_episodes
+save_params = not args.no_save
+save_results = not args.no_save_results
+config_loadfile = args.config_file
 best_result_so_far = None
-save_best = True
+save_best = not args.no_save_best
+if args.no_tqdm:
+    my_range = xrange
+else:
+    from tqdm import trange
+    my_range = trange
 
-results_loadfile = None
-params_loadfile = None
-load_params = False
-load_results = False
-if len(sys.argv) > 3:
-    load_params = True
-    load_results = True
-    params_loadfile = sys.argv[1]
-    results_loadfile = sys.argv[2]
-    config_loadfile = sys.argv[3]
-    params_savefile = params_loadfile
-    results_savefile = results_loadfile
+agent_loadfile = args.agent_file
 
-if load_params:
-    engine = QEngine.load( params_loadfile)
+
+results = None
+if agent_loadfile:
+    engine = QEngine.load(agent_loadfile, config_file=config_loadfile)
+    results = pickle.load(open(engine.results_file), "r")
 else:
     engine = setup()
     game = engine.game
-    basefile = engine.name
-    params_savefile = "params/" + basefile
-    results_savefile = "results/" + basefile + ".res"
 
-results = None
-epoch = 1
-if load_results:
-    results = pickle.load(open(results_loadfile, "r"))
-    epoch = results["epoch"][-1] + 1
-    best_result_so_far = results["best"]
-    if "actions" not in results:
-        results["actions"] = []
-else:
     if save_results:
         results = dict()
         results["epoch"] = []
@@ -69,17 +55,23 @@ else:
         results["best"] = None
         results["actions"] = []
 
+
 engine.print_setup()
 print "\n============================"
 
-test_frequency = 1
+epoch = 1
 overall_start = time()
-if results_loadfile and len(results["time"]) > 0:
+if save_results and len(results["epoch"]) > 0:
     overall_start -= results["overall_time"][-1]
-# Training starts here!
+    epoch = results["epoch"][-1] + 1
+    best_result_so_far = results["best"]
+    if "actions" not in results:
+        results["actions"] = []
+        for _ in len(results["epoch"]):
+            results["actions"].append(0)
 
 
-while epoch-1 < epochs:
+while epoch - 1 < epochs:
     print "\nEpoch", epoch
     train_time = 0
     train_episodes_finished = 0
@@ -90,7 +82,7 @@ while epoch-1 < epochs:
         start = time()
         engine.new_episode(update_state=True)
         print "\nTraining ..."
-        for step in trange(training_steps_per_epoch):
+        for step in my_range(training_steps_per_epoch):
             if game.is_episode_finished():
                 r = game.get_total_reward()
                 rewards.append(r)
@@ -114,13 +106,13 @@ while epoch-1 < epochs:
         print "t:", sec_to_str(train_time)
 
     # learning mode off
-    if (epoch + 1) % test_frequency == 0 and test_episodes_per_epoch > 0:
+    if  test_episodes_per_epoch > 0:
         engine.learning_mode = False
         rewards = []
 
         start = time()
         print "Testing..."
-        for test_episode in trange(test_episodes_per_epoch):
+        for test_episode in my_range(test_episodes_per_epoch):
             r = engine.run_episode()
             rewards.append(r)
         end = time()
@@ -128,18 +120,16 @@ while epoch-1 < epochs:
         print "Test results:"
         print engine.get_actions_stats(clear=True, norm=False).reshape([-1, 4])
         rewards = np.array(rewards)
-        best_result_so_far = max(best_result_so_far,rewards.mean())
+        best_result_so_far = max(best_result_so_far, rewards.mean())
         print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
         print "t:", sec_to_str(end - start)
         print "Best so far:", best_result_so_far
-
-
 
     overall_end = time()
     overall_time = overall_end - overall_start
 
     if save_results:
-        print "Saving results to:", results_savefile
+        print "Saving results to:", engine.results_file
         results["epoch"].append(epoch)
         results["time"].append(train_time)
         results["overall_time"].append(overall_time)
@@ -152,7 +142,7 @@ while epoch-1 < epochs:
         results["loss"].append(mean_loss)
         results["best"] = best_result_so_far
         results["actions"].append(engine.steps)
-        res_f = open(results_savefile, 'w')
+        res_f = open(engine.results_file, 'w')
         pickle.dump(results, res_f)
         res_f.close()
 
@@ -160,7 +150,7 @@ while epoch-1 < epochs:
     print ""
 
     if save_params:
-        engine.save(params_savefile)
+        engine.save()
 
     print "Elapsed time:", sec_to_str(overall_time)
     print "========================="

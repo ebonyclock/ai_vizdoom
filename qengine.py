@@ -501,7 +501,9 @@ class QEngine:
         return qengine
 
     # Saves the whole engine with params to a file
-    def save(self, filename, quiet=False):
+    def save(self, filename=None, quiet=False):
+        if filename is None:
+            filename = self.params_file
         if not quiet:
             print "Saving qengine to " + filename + "..."
         self._prepare_for_save()
