@@ -13,6 +13,10 @@ def build_learn_parser():
     agent_group.add_argument('--load-agent','-l', metavar='agent_file', dest="agent_file", type=str, nargs='?', default=None,
                         help='load agent from a file')
 
+    agent_group.add_argument('--print-agents', dest='print_agents', action='store_const',
+                        const=True, default=False,
+                        help='prints available agents from agents.py')
+
     parser.add_argument('--config-file','-c', metavar='config_file', type=str, nargs='?', default=None,
                         help='configuration file (used only when loading agent')
 
@@ -40,4 +44,7 @@ def build_learn_parser():
     parser.add_argument('--no-tqdm', dest='no_tqdm', action='store_const',
                         const=True, default=False,
                         help='do not use tqdm progress bar')
+
+
+
     return parser

@@ -1,7 +1,9 @@
-from qengine import *
+import numpy as np
+
+from qengine import QEngine
 
 
-def merge_dicts(dicta, dictb):
+def _merge_dicts(dicta, dictb):
     ret = dict()
     for key in dicta.keys():
         ret[key] = dicta[key]
@@ -11,7 +13,7 @@ def merge_dicts(dicta, dictb):
     return ret
 
 
-def default_engine_args():
+def _default_engine_args():
     default_network_args = {
         "ddqn": True,
         "learning_rate": 0.00025,
@@ -19,7 +21,7 @@ def default_engine_args():
         "gamma": 1.0
     }
 
-    default_engine_args = {
+    default_args = {
         "net_type": "dueling",
         "reshaped_x": 100,
         "reshaped_y": 75,
@@ -45,74 +47,84 @@ def default_engine_args():
         "reward_scale": None,
 
     }
-    return default_engine_args, default_network_args
+    return default_args, default_network_args
 
 
 def predict(name="predict_def"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/predict_position.cfg"
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
 
 def predict_supreme(name="predict-s_def"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/predict_position_supreme.cfg"
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
 
 def health_supreme(name="health-s_def_skip7"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/health_gathering_supreme.cfg",
         "skiprate": 7,
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
 
 def health(name="health_def_skip7"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/health_gathering.cfg",
         "skiprate": 7,
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
 
 def defend_the_center(name="center_def"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/defend_the_center.cfg"
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
 
 def take_cover(name="cover_def"):
-    defaults, net_defaults = default_engine_args()
+    defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
         "config_file": "config/take_cover.cfg"
     }
     network_args = net_defaults
-    engine_args = merge_dicts(defaults, custom_args)
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
+
+def pacman(name="pacman_def"):
+    defaults, net_defaults = _default_engine_args()
+    custom_args = {
+        "name": name,
+        "config_file": "config/pacman.cfg"
+    }
+    network_args = net_defaults
+    engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
+

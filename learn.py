@@ -7,9 +7,20 @@ import agents
 from args_parser import build_learn_parser
 from qengine import QEngine
 from util import *
+from inspect import getmembers, isfunction
+
 
 params_parser = build_learn_parser()
 args = params_parser.parse_args()
+
+
+if args.print_agents:
+    print "Available agents in agents.py:"
+    for member in getmembers(agents):
+        if isfunction(member[1]):
+            if member[1].__name__[0] !="_":
+                print "  ",member[1].__name__
+    exit(0)
 
 if args.agent is not None:
     setup = getattr(agents, args.agent)
@@ -154,6 +165,8 @@ while epoch - 1 < epochs:
 
     if save_params:
         engine.save()
+    if save_best:
+        engine.save(engine.params_file+"_best")
 
     print "Elapsed time:", sec_to_str(overall_time)
     print "========================="
