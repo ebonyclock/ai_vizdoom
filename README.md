@@ -10,7 +10,6 @@ The code implements Double DQN with Duelling architecture:
 Some videos with results:
 https://www.youtube.com/watch?v=re6hkcTWVUY
 
-
 ## Requirements:
 - Python 2.7 (should work with 3 after correcting prints)
 - [ViZDoom](https://github.com/openai/gym)
@@ -18,11 +17,9 @@ https://www.youtube.com/watch?v=re6hkcTWVUY
 - [Theano](http://deeplearning.net/software/theano/)
 - [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html)
 - [tqdm](https://github.com/tqdm/tqdm) (optional)
-- 
 
 >>> Code requires vizdoom.so and vizdoom to be present in the root directory. Config files and scenarios are also needed (can be found in the [ViZDoom](https://github.com/openai/gym) repo).
 
----
 ## Usage of learn.py
 
 ```bash
