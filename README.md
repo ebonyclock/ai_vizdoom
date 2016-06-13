@@ -18,9 +18,9 @@ https://www.youtube.com/watch?v=re6hkcTWVUY
 - [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html)
 - [tqdm](https://github.com/tqdm/tqdm) (optional)
 
->>> Code requires vizdoom.so and vizdoom to be present in the root directory. Config files and scenarios are also needed (can be found in the [ViZDoom](https://github.com/openai/gym) repo).
+>>> The code requires vizdoom.so and vizdoom to be present in the root directory. Config files and scenarios are also needed (can be found in the [ViZDoom](https://github.com/openai/gym) repo).
 
-## Usage of learn.py
+## Usage of the learning script
 
 ```bash
 usage: learn.py [-h] [--load-agent [agent_file]] [--config-file [config_file]]
@@ -55,3 +55,31 @@ optional arguments:
   --no-tqdm             do not use tqdm progress bar
 
 ```
+
+## Usage of the script for watching:
+```bash
+usage: watch.py [-h] [--config-file [config_file]] [--episodes [episodes]]
+                [--no-watch] [--action-sleep [action_sleep]]
+                [--episode-sleep [episode_sleep]]
+                [agent_file]
+
+A script to watch agents play or test them.
+
+positional arguments:
+  agent_file            file with the agent
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --config-file [config_file], -c [config_file]
+                        override agent's configuration file
+  --episodes [episodes], -e [episodes]
+                        run this many episodes (default 20)
+  --no-watch            do not display the window and do not sleep
+  --action-sleep [action_sleep], -s [action_sleep]
+                        sleep this many seconds after each action
+                        (default=1/35.0)
+  --episode-sleep [episode_sleep]
+                        sleep this many seconds after each episode
+                        (default=0.5)
+```
+
