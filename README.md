@@ -1,10 +1,10 @@
 AI learning from raw visual input using [ViZDoom](https://github.com/Marqt/ViZDoom) environment with [Theano](http://deeplearning.net/software/theano/) and [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html).
 
 The code implements Double DQN with Duelling architecture:
-[1] [Playing Atari with Deep Reinforcement Learning](http://arxiv.org/abs/1312.5602)  
-[2] [Human-Level Control through Deep Reinforcement Learning](http://home.uchicago.edu/~arij/journalclub/papers/2015_Mnih_et_al.pdf)  
-[3] [Deep Reinforcement Learning with Double Q-learning](http://arxiv.org/abs/1509.06461)  
-[4] [Dueling Network Architectures for Deep Reinforcement Learning](http://arxiv.org/abs/1511.06581)  
+- [Playing Atari with Deep Reinforcement Learning](http://arxiv.org/abs/1312.5602)  
+- [Human-Level Control through Deep Reinforcement Learning](http://home.uchicago.edu/~arij/journalclub/papers/2015_Mnih_et_al.pdf)  
+- [Deep Reinforcement Learning with Double Q-learning](http://arxiv.org/abs/1509.06461)  
+- [Dueling Network Architectures for Deep Reinforcement Learning](http://arxiv.org/abs/1511.06581)  
 
 
 Some videos with results:
