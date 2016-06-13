@@ -14,7 +14,7 @@ params_parser = build_learn_parser()
 args = params_parser.parse_args()
 
 
-if args.print_agents:
+if args.list_agents:
     print "Available agents in agents.py:"
     for member in getmembers(agents):
         if isfunction(member[1]):

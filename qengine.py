@@ -22,12 +22,15 @@ def generate_default_actions(the_game):
     return actions
 
 
-def initialize_doom(config_file, grayscale=True):
+def initialize_doom(config_file, grayscale=True, visible=False):
     doom = DoomGame()
     doom.load_config("common.cfg")
     doom.load_config(config_file)
+    doom.set_window_visible(visible)
+
     if grayscale:
         doom.set_screen_format(ScreenFormat.GRAY8)
+
     print "Initializing DOOM ..."
     doom.init()
     print "DOOM initialized."
@@ -114,7 +117,7 @@ class QEngine:
         if params_file:
             self.params_file = params_file
         else:
-            self.params_file = "params/" + name + ".res"
+            self.params_file = "params/" + name
 
         if self.game.get_available_game_variables_size() > 0 and use_game_variables:
             self.use_game_variables = True

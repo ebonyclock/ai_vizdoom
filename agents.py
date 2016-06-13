@@ -118,6 +118,17 @@ def take_cover(name="cover_def"):
     return QEngine(network_args=network_args, **engine_args)
 
 
+def take_cover_simple(name="cover_simple_def"):
+    defaults, net_defaults = _default_engine_args()
+    custom_args = {
+        "name": name,
+        "config_file": "config/take_cover_simple.cfg"
+    }
+    network_args = net_defaults
+    engine_args = _merge_dicts(defaults, custom_args)
+    return QEngine(network_args=network_args, **engine_args)
+
+
 def pacman(name="pacman_def"):
     defaults, net_defaults = _default_engine_args()
     custom_args = {
@@ -128,3 +139,15 @@ def pacman(name="pacman_def"):
     engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
 
+
+def test(name="test"):
+    defaults, net_defaults = _default_engine_args()
+    custom_args = {
+        "name": name,
+        "config_file": "config/predict_position_supreme.cfg",
+        "replay_memory_size": 35000,
+        "backprop_start_step": np.inf
+    }
+    network_args = net_defaults
+    engine_args = _merge_dicts(defaults, custom_args)
+    return QEngine(network_args=network_args, **engine_args)
