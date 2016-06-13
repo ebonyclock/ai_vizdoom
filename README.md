@@ -1,12 +1,30 @@
-AI learning from raw visual input using [ViZDoom](https://github.com/Marqt/ViZDoom) environment.
+AI learning from raw visual input using [ViZDoom](https://github.com/Marqt/ViZDoom) environment with [Theano](http://deeplearning.net/software/theano/) and [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html).
 
-Everything is written in Python 2 (Theano + Lasagne) and is based on DeepMind's DQN.
+The code implements Double DQN with Duelling architecture:
+[1] [Playing Atari with Deep Reinforcement Learning](http://arxiv.org/abs/1312.5602)  
+[2] [Human-Level Control through Deep Reinforcement Learning](http://home.uchicago.edu/~arij/journalclub/papers/2015_Mnih_et_al.pdf)  
+[3] [Deep Reinforcement Learning with Double Q-learning](http://arxiv.org/abs/1509.06461)  
+[4] [Dueling Network Architectures for Deep Reinforcement Learning](http://arxiv.org/abs/1511.06581)  
+
 
 Some videos with results:
 https://www.youtube.com/watch?v=re6hkcTWVUY
 
+
+## Requirements:
+- Python 2.7 (should work with 3 after correcting prints)
+- [ViZDoom](https://github.com/openai/gym)
+- [Scikit-image](http://scikit-image.org/)
+- [Theano](http://deeplearning.net/software/theano/)
+- [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html)
+- [tqdm](https://github.com/tqdm/tqdm) (optional)
+- 
+
+>>> Code requires vizdoom.so and vizdoom to be present in the root directory. Config files and scenarios are also needed (can be found in the [ViZDoom](https://github.com/openai/gym) repo).
+
 ---
-To launch learning use learn.py:
+## Usage of learn.py
+
 ```bash
 usage: learn.py [-h] [--load-agent [agent_file]] [--config-file [config_file]]
                 [--name [name]] [--no-save] [--no-save-results]
