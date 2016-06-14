@@ -7,12 +7,12 @@ The code implements Double DQN with Duelling architecture:
 - [Dueling Network Architectures for Deep Reinforcement Learning](http://arxiv.org/abs/1511.06581)  
 
 
-Some videos with results:
+Some videos with early results (no double/duelling and bugs):
 https://www.youtube.com/watch?v=re6hkcTWVUY
 
 ## Requirements:
 - Python 2.7 (should work with 3 after correcting prints)
-- [ViZDoom](https://github.com/openai/gym)
+- [ViZDoom](https://github.com/Marqt/ViZDoom)
 - [Scikit-image](http://scikit-image.org/)
 - [Theano](http://deeplearning.net/software/theano/)
 - [Lasagne](http://lasagne.readthedocs.io/en/latest/index.html)
