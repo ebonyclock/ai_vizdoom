@@ -9,7 +9,7 @@ import cv2
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
 
-from evaluators import *
+from approximators import *
 from replay_memory import ReplayMemory
 
 
@@ -220,7 +220,7 @@ class QEngine:
         elif net_type in ["duelling", "dueling"]:
             self._evaluator = DuelingDQN(**network_args)
         else:
-            print "Unsupported evaluator type."
+            print "Unsupported approximator type."
             exit(1)
             # TODO throw. . .?
 

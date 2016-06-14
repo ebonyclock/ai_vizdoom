@@ -51,7 +51,7 @@ else:
         engine = setup(args.name)
     else:
         engine = setup()
-        
+
     if save_results:
         results = dict()
         results["epoch"] = []
