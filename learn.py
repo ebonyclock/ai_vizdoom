@@ -1,25 +1,25 @@
 #!/usr/bin/python
 
 import pickle
+from inspect import getmembers, isfunction
 from time import time
+
 import numpy as np
+
 import agents
 from args_parser import build_learn_parser
 from qengine import QEngine
 from util import *
-from inspect import getmembers, isfunction
-
 
 params_parser = build_learn_parser()
 args = params_parser.parse_args()
-
 
 if args.list_agents:
     print "Available agents in agents.py:"
     for member in getmembers(agents):
         if isfunction(member[1]):
-            if member[1].__name__[0] !="_":
-                print "  ",member[1].__name__
+            if member[1].__name__[0] != "_":
+                print "  ", member[1].__name__
     exit(0)
 
 if args.agent is not None:
@@ -37,15 +37,15 @@ if args.no_tqdm:
     my_range = xrange
 else:
     from tqdm import trange
+
     my_range = trange
 
 agent_loadfile = args.agent_file
 
-
 results = None
 if agent_loadfile:
     engine = QEngine.load(agent_loadfile, config_file=config_loadfile)
-    results = pickle.load(open(engine.results_file,"r"))
+    results = pickle.load(open(engine.results_file, "r"))
 else:
     if args.name is not None:
         engine = setup(args.name)
@@ -83,7 +83,6 @@ if save_results and len(results["epoch"]) > 0:
         for _ in len(results["epoch"]):
             results["actions"].append(0)
 
-
 while epoch - 1 < epochs:
     print "\nEpoch", epoch
     train_time = 0
@@ -119,7 +118,8 @@ while epoch - 1 < epochs:
         print "t:", sec_to_str(train_time)
 
     # learning mode off
-    if  test_episodes_per_epoch > 0:
+    new_best = False
+    if test_episodes_per_epoch > 0:
         engine.learning_mode = False
         rewards = []
 
@@ -133,7 +133,12 @@ while epoch - 1 < epochs:
         print "Test results:"
         print engine.get_actions_stats(clear=True, norm=False).reshape([-1, 4])
         rewards = np.array(rewards)
-        best_result_so_far = max(best_result_so_far, rewards.mean())
+
+        if rewards.mean() >= best_result_so_far:
+            best_result_so_far = rewards.mean()
+            new_best = True
+        else:
+            new_best = False
         print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
         print "t:", sec_to_str(end - start)
         print "Best so far:", best_result_so_far
@@ -164,8 +169,8 @@ while epoch - 1 < epochs:
 
     if save_params:
         engine.save()
-    if save_best:
-        engine.save(engine.params_file+"_best")
+    if save_best and new_best:
+        engine.save(engine.params_file + "_best")
 
     print "Elapsed time:", sec_to_str(overall_time)
     print "========================="

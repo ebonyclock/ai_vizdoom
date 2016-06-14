@@ -93,7 +93,10 @@ class QEngine:
             self._count_states = bool(count_states)
 
         self.name = name
-        self.reward_scale = reward_scale
+        if reward_scale is not None:
+            self.reward_scale = reward_scale
+        else:
+            self.reward_scale = 1.0
 
         self.batchsize = batchsize
         self.history_length = max(history_length, 1)
@@ -359,8 +362,7 @@ class QEngine:
             r += sr - self.last_shaping_reward
             self.last_shaping_reward = sr
 
-        if self.reward_scale is not None:
-            r *= self.reward_scale
+        r *= self.reward_scale
 
         # update state s2 accordingly
         if self.game.is_episode_finished():
