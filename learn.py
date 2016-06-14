@@ -45,14 +45,13 @@ agent_loadfile = args.agent_file
 results = None
 if agent_loadfile:
     engine = QEngine.load(agent_loadfile, config_file=config_loadfile)
-    results = pickle.load(open(engine.results_file), "r")
+    results = pickle.load(open(engine.results_file,"r"))
 else:
     if args.name is not None:
         engine = setup(args.name)
     else:
         engine = setup()
-    game = engine.game
-
+        
     if save_results:
         results = dict()
         results["epoch"] = []
@@ -69,7 +68,7 @@ else:
         results["best"] = None
         results["actions"] = []
 
-
+game = engine.game
 engine.print_setup()
 print "\n============================"
 
