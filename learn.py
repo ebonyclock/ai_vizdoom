@@ -59,6 +59,8 @@ else:
         results["overall_time"] = []
         results["mean"] = []
         results["std"] = []
+        results["train_mean"] = []
+        results["train_std"] = []
         results["max"] = []
         results["min"] = []
         results["epsilon"] = []
@@ -89,7 +91,7 @@ while epoch - 1 < epochs:
     train_episodes_finished = 0
     mean_loss = 0
     if training_steps_per_epoch > 0:
-        rewards = []
+        train_rewards = []
 
         start = time()
         engine.new_episode(update_state=True)
@@ -97,7 +99,7 @@ while epoch - 1 < epochs:
         for step in my_range(training_steps_per_epoch):
             if game.is_episode_finished():
                 r = game.get_total_reward()
-                rewards.append(r)
+                train_rewards.append(r)
                 engine.new_episode(update_state=True)
                 train_episodes_finished += 1
             engine.make_learning_step()
@@ -110,36 +112,36 @@ while epoch - 1 < epochs:
 
         mean_loss = engine._evaluator.get_mean_loss()
 
-        if len(rewards) == 0:
-            rewards.append(-123)
-        rewards = np.array(rewards)
+        if len(train_rewards) == 0:
+            train_rewards.append(-123)
+        train_rewards = np.array(train_rewards)
 
-        print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min(), "mean_loss:", mean_loss, "eps:", engine.get_epsilon()
+        print "mean:", train_rewards.mean(), "std:", train_rewards.std(), "max:", train_rewards.max(), "min:", train_rewards.min(), "mean_loss:", mean_loss, "eps:", engine.get_epsilon()
         print "t:", sec_to_str(train_time)
 
     # learning mode off
     new_best = False
     if test_episodes_per_epoch > 0:
         engine.learning_mode = False
-        rewards = []
+        test_rewards = []
 
         start = time()
         print "Testing..."
         for test_episode in my_range(test_episodes_per_epoch):
             r = engine.run_episode()
-            rewards.append(r)
+            test_rewards.append(r)
         end = time()
 
         print "Test results:"
         print engine.get_actions_stats(clear=True, norm=False).reshape([-1, 4])
-        rewards = np.array(rewards)
+        test_rewards = np.array(test_rewards)
 
-        if rewards.mean() >= best_result_so_far:
-            best_result_so_far = rewards.mean()
+        if test_rewards.mean() >= best_result_so_far:
+            best_result_so_far = test_rewards.mean()
             new_best = True
         else:
             new_best = False
-        print "mean:", rewards.mean(), "std:", rewards.std(), "max:", rewards.max(), "min:", rewards.min()
+        print "mean:", test_rewards.mean(), "std:", test_rewards.std(), "max:", test_rewards.max(), "min:", test_rewards.min()
         print "t:", sec_to_str(end - start)
         print "Best so far:", best_result_so_far
 
@@ -151,10 +153,13 @@ while epoch - 1 < epochs:
         results["epoch"].append(epoch)
         results["time"].append(train_time)
         results["overall_time"].append(overall_time)
-        results["mean"].append(rewards.mean())
-        results["std"].append(rewards.std())
-        results["max"].append(rewards.max())
-        results["min"].append(rewards.min())
+        results["mean"].append(test_rewards.mean())
+        results["std"].append(test_rewards.std())
+        results["max"].append(test_rewards.max())
+        results["min"].append(test_rewards.min())
+        results["train_mean"].append(train_rewards.mean())
+        results["train_std"].append(train_rewards.std())
+
         results["epsilon"].append(engine.get_epsilon())
         results["training_episodes_finished"].append(train_episodes_finished)
         results["loss"].append(mean_loss)
