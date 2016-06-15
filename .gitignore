@@ -12,7 +12,9 @@
 
 params/*
 results/*
-
+logs/*
+.theano_stuff
+excluded_hosts
 *.res
 **.bak
 vizdoom
