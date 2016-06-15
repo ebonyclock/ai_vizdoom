@@ -45,6 +45,7 @@ def _default_engine_args():
         "replay_memory_size": 20000,
         "misc_scale": None,
         "reward_scale": None,
+        "batchsize": 64
 
     }
     return default_args, default_network_args
@@ -140,14 +141,18 @@ def pacman(name="pacman_def"):
     return QEngine(network_args=network_args, **engine_args)
 
 
-def test(name="test"):
+def health_baseline(name="health_baseline4"):
     defaults, net_defaults = _default_engine_args()
     custom_args = {
         "name": name,
-        "config_file": "config/predict_position_supreme.cfg",
-        "replay_memory_size": 35000,
-        "backprop_start_step": np.inf
+        "config_file": "config/health_gathering.cfg",
+        "skiprate": 9,
+        "count_states": False,
+        "reshaped_x": 84,
+        "reshaped_y": 84,
+        "net_type": "dqn",
     }
     network_args = net_defaults
+    net_defaults["gamma"] = 0.99
     engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
