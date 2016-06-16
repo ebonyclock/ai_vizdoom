@@ -3,34 +3,20 @@
 import pickle
 from inspect import getmembers, isfunction
 from time import time
-
 import numpy as np
-
 import agents
 from args_parser import build_learn_parser
 from qengine import QEngine
 from util import *
+import yaml
 
 params_parser = build_learn_parser()
 args = params_parser.parse_args()
-
-if args.list_agents:
-    print "Available agents in agents.py:"
-    for member in getmembers(agents):
-        if isfunction(member[1]):
-            if member[1].__name__[0] != "_":
-                print "  ", member[1].__name__
-    exit(0)
-
-if args.agent is not None:
-    setup = getattr(agents, args.agent)
-
-training_steps_per_epoch = args.train_steps
-epochs = args.epochs
-test_episodes_per_epoch = args.test_episodes
+training_steps_per_epoch = args.train_steps[0]
+epochs = args.epochs[0]
+test_episodes_per_epoch = args.test_episodes[0]
 save_params = not args.no_save
 save_results = not args.no_save_results
-config_loadfile = args.config_file
 best_result_so_far = None
 save_best = not args.no_save_best
 if args.no_tqdm:
@@ -40,17 +26,35 @@ else:
 
     my_range = trange
 
-agent_loadfile = args.agent_file
+if args.list_agents:
+    print "Available agents in agents.py:"
+    for member in getmembers(agents):
+        if isfunction(member[1]):
+            if member[1].__name__[0] != "_":
+                print "  ", member[1].__name__
+    exit(0)
+
 
 results = None
-if agent_loadfile:
-    engine = QEngine.load(agent_loadfile, config_file=config_loadfile)
+if args.agent_file[0]:
+    engine = QEngine.load(args.agent_file[0], config_file=args.config_fil1[0])
     results = pickle.load(open(engine.results_file, "r"))
 else:
-    if args.name is not None:
-        engine = setup(args.name)
+    if args.agent is not None:
+        if args.name[0] is not None:
+            engine = getattr(agents, args.agent)(args.name[0])
+        else:
+            engine = getattr(agents, args.agent)()
+
+    elif args.json_file[0] is not None:
+        engine_args = yaml.load(open(args.json_file[0], "r"))
+        if args.name[0] is not None:
+            engine_args["name"] = args.name[0]
+        if args.config_file[0] is not None:
+            engine_args["config_file"] = args.config_file[0]
+        engine = QEngine(**engine_args)
     else:
-        engine = setup()
+        raise Exception("No agent file, no json, no agent ... Huge fuckup. Aborting.")
 
     if save_results:
         results = dict()

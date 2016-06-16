@@ -27,6 +27,7 @@ def _default_engine_args():
         "reshaped_y": 75,
         "skiprate": 3,
 
+        "history_length": 4,
         "remember_n_actions": 4,
         "one_hot": True,
 

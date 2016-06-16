@@ -1,0 +1,35 @@
+{
+  "network_args": {
+    "ddqn": true,
+    "learning_rate": 0.00025,
+    "gamma": 0.99
+  },
+  "net_type": "dqn",
+  "reshaped_x": 84,
+  "reshaped_y": 84,
+  "skiprate": 9,
+  "remember_n_actions": 4,
+  "one_hot": true,
+  "history_length": 4,
+  "melt_steps": 10000,
+  "epsilon_decay_steps": 500000,
+  "epsilon_decay_start_step": 0,
+  "start_epsilon": 1.0,
+  "end_epsilon": 0.005,
+  "update_pattern": [
+    4,
+    1
+  ],
+  "backprop_start_step": 10000,
+  "replay_memory_size": 50000,
+
+  "batchsize": 64,
+  "name": "baseline4",
+
+  "use_game_variables": true,
+  "count_states": false,
+  "shaping_on": false,
+  "misc_scale": null,
+  "reward_scale": null
+
+}
