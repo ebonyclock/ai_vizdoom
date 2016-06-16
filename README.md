@@ -23,11 +23,12 @@ https://www.youtube.com/watch?v=re6hkcTWVUY
 ## Usage of the learning script
 
 ```bash
-usage: learn.py [-h] [--load-agent [agent_file]] [--config-file [config_file]]
-                [--name [name]] [--no-save] [--no-save-results]
-                [--no-save-best] [--epochs [epochs]]
-                [--train-steps [train_steps]]
-                [--test-episodes [test_episodes]] [--no-tqdm]
+usage: learn.py [-h] [--load-agent <AGENT_FILE>] [--list-agents]
+                [--load-json <JSON_FILE>] [--config-file <CONFIG_FILE>]
+                [--name <NAME>] [--no-save] [--no-save-results]
+                [--no-save-best] [--epochs <EPOCHS_NUM>]
+                [--train-steps <TRAIN_STEPS>]
+                [--test-episodes <TEST_EPISODES_NUM>] [--no-tqdm]
                 [agent]
 
 Learning script for ViZDoom.
@@ -37,21 +38,25 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --load-agent [agent_file], -l [agent_file]
+  --load-agent <AGENT_FILE>, -l <AGENT_FILE>
                         load agent from a file
-  --config-file [config_file], -c [config_file]
-                        configuration file (used only when loading agent
-  --name [name], -n [name]
+  --list-agents         lists agents available in agents.py
+  --load-json <JSON_FILE>, -j <JSON_FILE>
+                        load agent's specification from a json file
+  --config-file <CONFIG_FILE>, -c <CONFIG_FILE>
+                        configuration file (used only when loading agent or
+                        using json)
+  --name <NAME>, -n <NAME>
                         agent's name (affects savefiles)
   --no-save             do not save agent's parameters
   --no-save-results     do not save agent's results
   --no-save-best        do not save the best agent
-  --epochs [epochs], -e [epochs]
-                        number of epochs (default infinity)
-  --train-steps [train_steps]
-                        training steps per epoch (default 200k)
-  --test-episodes [test_episodes]
-                        testing episodes per epoch (default 300)
+  --epochs <EPOCHS_NUM>, -e <EPOCHS_NUM>
+                        number of epochs (default: infinity)
+  --train-steps <TRAIN_STEPS>
+                        training steps per epoch (default: 200k)
+  --test-episodes <TEST_EPISODES_NUM>
+                        testing episodes per epoch (default: 300)
   --no-tqdm             do not use tqdm progress bar
 
 ```

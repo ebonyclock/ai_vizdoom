@@ -87,6 +87,7 @@ class QEngine:
             self.game = initialize_doom(self.config_file)
         else:
             raise Exception("No game, no config file. Dunno how to initialize doom.")
+
         if network_args is None:
             network_args = dict()
         if count_states is not None:
@@ -487,7 +488,7 @@ class QEngine:
             if config_file is not None:
                 game = initialize_doom(config_file)
                 qengine_args["config_file"] = config_file
-            elif qengine_args["config_file"] is not None:
+            elif "config_file" in qengine_args and qengine_args["config_file"] is not None:
                 game = initialize_doom(qengine_args["config_file"])
             else:
                 raise Exception("No game, no config file. Dunno how to initialize doom.")
