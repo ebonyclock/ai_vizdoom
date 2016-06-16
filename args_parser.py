@@ -13,7 +13,7 @@ def build_learn_parser():
                              default=[None],
                              help='load agent from a file')
 
-    agent_group.add_argument('--list-agents', dest='list_agents', action='store_const',
+    agent_group.add_argument('--list', dest='list_agents', action='store_const',
                              const=True, default=False,
                              help='lists agents available in agents.py')
 
