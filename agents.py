@@ -157,3 +157,22 @@ def health_baseline(name="health_baseline4"):
     net_defaults["gamma"] = 0.99
     engine_args = _merge_dicts(defaults, custom_args)
     return QEngine(network_args=network_args, **engine_args)
+
+def health_test(name="health_baseline4"):
+    defaults, net_defaults = _default_engine_args()
+    custom_args = {
+        "name": name,
+        "config_file": "config/health_gathering.cfg",
+        "skiprate": 9,
+        "count_states": True,
+        "reshaped_x": 84,
+        "reshaped_y": 84,
+        "net_type": "dqn",
+        "count_states_type": "one_hot",
+        "count_states_interval": 10,
+        "count_states_max": 2100,
+    }
+    network_args = net_defaults
+    net_defaults["gamma"] = 0.99
+    engine_args = _merge_dicts(defaults, custom_args)
+    return QEngine(network_args=network_args, **engine_args)
