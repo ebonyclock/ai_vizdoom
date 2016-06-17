@@ -10,6 +10,7 @@ from qengine import QEngine
 from util import *
 import yaml
 
+# Arguments parsing
 params_parser = build_learn_parser()
 args = params_parser.parse_args()
 training_steps_per_epoch = args.train_steps[0]
@@ -19,6 +20,7 @@ save_params = not args.no_save
 save_results = not args.no_save_results
 best_result_so_far = None
 save_best = not args.no_save_best
+
 if args.no_tqdm:
     my_range = xrange
 else:
@@ -73,6 +75,7 @@ else:
         results["setup"] = engine.setup
         results["best"] = None
         results["actions"] = []
+# Arguments parsing ends here
 
 game = engine.game
 engine.print_setup()
@@ -101,6 +104,7 @@ while epoch - 1 < epochs:
         engine.new_episode(update_state=True)
         print "\nTraining ..."
         for step in my_range(training_steps_per_epoch):
+            #TODO move the check to QEngine
             if game.is_episode_finished():
                 r = game.get_total_reward()
                 train_rewards.append(r)

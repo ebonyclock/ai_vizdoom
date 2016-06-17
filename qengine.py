@@ -1,14 +1,12 @@
 import itertools as it
 import pickle
 import random
-from math import log, floor
+from math import log, floor, ceil
 from time import sleep
 from vizdoom import *
-
 import cv2
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
-
 from approximators import *
 from replay_memory import ReplayMemory
 
@@ -68,6 +66,10 @@ class QEngine:
 
                     shaping_on=False,
                     count_states=False,
+                    count_states_type=None,
+                    count_states_interval=1,
+                    count_states_max=2100,
+
                     use_game_variables=True,
                     remember_n_actions=4,
                     one_hot=False,
@@ -90,8 +92,25 @@ class QEngine:
 
         if network_args is None:
             network_args = dict()
+
         if count_states is not None:
-            self._count_states = bool(count_states)
+            self.count_states = bool(count_states)
+            if self.count_states:
+                if count_states_type:
+                    self.count_states_type = count_states_type
+                    self.count_states_max = int(count_states_max)
+                else:
+                    self.count_states_type = None
+
+                if self.count_states_type == "one_hot":
+                    self.count_states_interval = int(count_states_interval)
+                    self.count_states_len = int(ceil(self.count_states_max / self.count_states_interval))
+                elif self.count_states_type == "binary":
+                    raise Exception("Unsupported yet")
+                else:
+                    self.count_states_len = 1
+        else:
+            self.count_states = False
 
         self.name = name
         if reward_scale is not None:
@@ -180,9 +199,9 @@ class QEngine:
         self.convert_image_fun = convert
 
         if self.use_game_variables:
-            single_state_misc_len = self.game.get_available_game_variables_size() + int(self._count_states)
+            single_state_misc_len = int(self.game.get_available_game_variables_size() + self.count_states_len)
         else:
-            single_state_misc_len = int(self._count_states)
+            single_state_misc_len = int(self.count_states_len)
         self.single_state_misc_len = single_state_misc_len
 
         self.remember_n_actions = remember_n_actions
@@ -194,10 +213,10 @@ class QEngine:
                 self._action_len = len(self.actions[0])
             self.last_action = np.zeros([self._action_len], dtype=np.float32)
             self._last_n_actions = np.zeros([remember_n_actions * self._action_len], dtype=np.float32)
-            self._total_misc_len = single_state_misc_len * self.history_length + len(self._last_n_actions)
+            self._total_misc_len = int(single_state_misc_len * self.history_length + len(self._last_n_actions))
 
         else:
-            self._total_misc_len = single_state_misc_len * self.history_length
+            self._total_misc_len = int(single_state_misc_len * self.history_length)
 
         if self._total_misc_len > 0:
             self._misc_state_included = True
@@ -224,9 +243,7 @@ class QEngine:
         elif net_type in ["duelling", "dueling"]:
             self._evaluator = DuelingDQN(**network_args)
         else:
-            print "Unsupported approximator type."
-            exit(1)
-            # TODO throw. . .?
+            raise Exception("Unsupported approximator type. Supported: dqn, duel(l)ing")
 
         self._current_image_state = np.zeros(img_shape, dtype=np.float32)
 
@@ -241,9 +258,20 @@ class QEngine:
             if self.use_game_variables:
                 game_variables = raw_state.game_variables.astype(np.float32)
                 state_misc[0:len(game_variables)] = game_variables
+                count_state_start = len(game_variables)
+            else:
+                count_state_start = 0
+            if self.count_states:
+                if self.count_states_type == "one_hot":
+                    # -1 is here cause counting starts with -1 instead of 0
+                    num_one_hot = (min(self.count_states_max, raw_state.number)-1)/self.count_states_interval
+                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    state_number[num_one_hot] = 1
+                else:
+                    state_number = raw_state.number
 
-            if self._count_states:
-                state_misc[-1] = raw_state.number
+
+                state_misc[count_state_start:] = state_number
 
             if self._misc_scale is not None:
                 state_misc = state_misc * self._misc_scale
