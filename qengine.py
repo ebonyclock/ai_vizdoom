@@ -264,12 +264,11 @@ class QEngine:
             if self.count_states:
                 if self.count_states_type == "one_hot":
                     # -1 is here cause counting starts with -1 instead of 0
-                    num_one_hot = (min(self.count_states_max, raw_state.number)-1)/self.count_states_interval
+                    num_one_hot = (min(self.count_states_max, raw_state.number) - 1) / self.count_states_interval
                     state_number = np.zeros([self.count_states_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
                 else:
                     state_number = raw_state.number
-
 
                 state_misc[count_state_start:] = state_number
 
