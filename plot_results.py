@@ -57,7 +57,7 @@ for filename in args.files:
             show_plot = True
 
 if show_plot:
-    plt.xlabel('10e6 actions')
+    plt.xlabel('1e6 actions')
     legend = plt.legend(loc='upper left', fancybox=True, shadow=True).draggable()
     plt.show()
 else:

@@ -93,10 +93,11 @@ class QEngine:
         if network_args is None:
             network_args = dict()
 
-        if count_states is not None:
+
+        if count_states:
             self.count_states = bool(count_states)
             if self.count_states:
-                if count_states_type:
+                if count_states_type is not None:
                     self.count_states_type = count_states_type
                     self.count_states_max = int(count_states_max)
                 else:
@@ -110,6 +111,7 @@ class QEngine:
                 else:
                     self.count_states_len = 1
         else:
+            self.count_states_len = 0
             self.count_states = False
 
         self.name = name
