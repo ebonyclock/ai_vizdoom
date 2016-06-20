@@ -372,6 +372,9 @@ class QEngine:
         self.game.advance_action()
         sleep(sleep_time)
 
+    def check_timeout(self):
+        return (self.game.get_episode_time() - self.game.get_episode_start_time() >= self.game.get_episode_timeout())
+
     # Performs a learning step according to epsilon-greedy policy.
     # The step spans self._skiprate +1 actions.
     def make_learning_step(self):
@@ -403,11 +406,9 @@ class QEngine:
 
         r *= self.reward_scale
 
-        # update state s2 accordingly
+        # update state s2 accordingly and add transition
         if self.game.is_episode_finished():
-            # terminal state
-            # TODO check timeout more elegantly
-            if not self.no_timeout_terminal or r > 0:
+            if (not self.no_timeout_terminal) or (not self.check_timeout()):
                 s2 = None
                 self.replay_memory.add_transition(s, a, s2, r, terminal=True)
         else:
