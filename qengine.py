@@ -242,7 +242,7 @@ class QEngine:
         state_format = dict()
         state_format["s_img"] = img_shape
         state_format["s_misc"] = self._total_misc_len
-        self._transitions = ReplayMemory(state_format, replay_memory_size, batchsize)
+        self.replay_memory = ReplayMemory(state_format, replay_memory_size, batchsize)
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self.actions)
@@ -407,26 +407,22 @@ class QEngine:
         if self.game.is_episode_finished():
             # terminal state
             # TODO check timeout more elegantly
-            if not self.no_timeout_terminal or r == 0:
+            if not self.no_timeout_terminal or r > 0:
                 s2 = None
-                self._transitions.add_transition(s, a, s2, r, terminal=True)
+                self.replay_memory.add_transition(s, a, s2, r, terminal=True)
         else:
             self._update_state()
             s2 = self._current_state()
-            self._transitions.add_transition(s, a, s2, r, terminal=False)
+            self.replay_memory.add_transition(s, a, s2, r, terminal=False)
 
         # Perform q-learning once for a while
-        if self._transitions.size >= self.backprop_start_step and self.steps % self.update_pattern[0] == 0:
+        if self.replay_memory.size >= self.backprop_start_step and self.steps % self.update_pattern[0] == 0:
             for a in xrange(self.update_pattern[1]):
-                self._evaluator.learn(self._transitions.get_sample())
+                self._evaluator.learn(self.replay_memory.get_sample())
 
         # Melt the network sometimes
         if self.steps % self.melt_steps == 0:
             self._evaluator.melt()
-
-    # Adds a transition to the bank.
-    def add_transition(self, s, a, s2, r, terminal):
-        self._transitions.add_transition(s, a, s2, r, terminal)
 
     # Runs a single episode in current mode. It ignores the mode if learn==true/false
     def run_episode(self, sleep_time=0):
