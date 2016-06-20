@@ -164,6 +164,7 @@ class DQN:
 
         s0_img = self._inputs["S0"]
         s1_img = self._inputs["S1"]
+        print "Compiling the network..."
         if self._misc_state_included:
             s0_misc = self._inputs["S0_misc"]
             s1_misc = self._inputs["S1_misc"]
@@ -175,7 +176,7 @@ class DQN:
             self._learn = theano.function([s0_img, s1_img, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
             self._evaluate = theano.function([s0_img], q, mode=mode, name="eval_fn")
-
+        print "Network compiled."
     def learn(self, transitions):
         t = transitions
         if self._misc_state_included:

@@ -58,7 +58,7 @@ for filename in args.files:
 
 if show_plot:
     plt.xlabel('1e6 actions')
-    legend = plt.legend(loc='upper left', fancybox=True, shadow=True).draggable()
+    legend = plt.legend(loc='lower right', fancybox=True, shadow=True).draggable()
     plt.show()
 else:
     print "No valid file/stat. Exiting."
