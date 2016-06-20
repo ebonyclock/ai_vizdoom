@@ -35,6 +35,13 @@ def initialize_doom(config_file, grayscale=True, visible=False):
     return doom
 
 
+BITS_FOR_COUNT = 16
+
+
+def to_bin_array(x):
+    return [int(x) for x in bin(x)[2:].zfill(BITS_FOR_COUNT)]
+
+
 class QEngine:
     def __init__(self, **kwargs):
         self.setup = kwargs
@@ -77,8 +84,9 @@ class QEngine:
                     misc_scale=None,
                     results_file=None,
                     params_file=None,
-                    config_file=None
+                    config_file=None,
 
+                    no_timeout_terminal=False
                     ):
 
         if game is not None:
@@ -93,22 +101,21 @@ class QEngine:
         if network_args is None:
             network_args = dict()
 
-
         if count_states:
             self.count_states = bool(count_states)
             if self.count_states:
                 if count_states_type is not None:
                     self.count_states_type = count_states_type
-                    self.count_states_max = int(count_states_max)
+                    if self.count_states_type == "one_hot":
+                        self.count_states_max = int(count_states_max)
+                        self.count_states_interval = int(count_states_interval)
+                        self.count_states_len = int(ceil(self.count_states_max / self.count_states_interval))
+                    elif self.count_states_type == "binary":
+                        self.count_states_len = BITS_FOR_COUNT
+                    else:
+                        raise Exception("Unsupported count states type:" + count_states_type)
                 else:
                     self.count_states_type = None
-
-                if self.count_states_type == "one_hot":
-                    self.count_states_interval = int(count_states_interval)
-                    self.count_states_len = int(ceil(self.count_states_max / self.count_states_interval))
-                elif self.count_states_type == "binary":
-                    raise Exception("Unsupported yet")
-                else:
                     self.count_states_len = 1
         else:
             self.count_states_len = 0
@@ -134,7 +141,7 @@ class QEngine:
         self.melt_steps = melt_steps
         self.backprop_start_step = max(backprop_start_step, batchsize)
         self.one_hot = one_hot
-
+        self.no_timeout_terminal = no_timeout_terminal
         if results_file:
             self.results_file = results_file
         else:
@@ -269,6 +276,8 @@ class QEngine:
                     num_one_hot = (min(self.count_states_max, raw_state.number) - 1) / self.count_states_interval
                     state_number = np.zeros([self.count_states_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
+                elif self.count_states_type == "binary":
+                    state_number = to_bin_array(raw_state.number)
                 else:
                     state_number = raw_state.number
 
@@ -397,8 +406,10 @@ class QEngine:
         # update state s2 accordingly
         if self.game.is_episode_finished():
             # terminal state
-            s2 = None
-            self._transitions.add_transition(s, a, s2, r, terminal=True)
+            # TODO check timeout more elegantly
+            if not self.no_timeout_terminal or r == 0:
+                s2 = None
+                self._transitions.add_transition(s, a, s2, r, terminal=True)
         else:
             self._update_state()
             s2 = self._current_state()
