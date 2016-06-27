@@ -54,8 +54,10 @@ class QEngine:
         self.setup["steps"] = self.steps
         self.setup["skiprate"] = self.skiprate
 
-    # TODO why the fuck isn't it in init?
-    def _initialize(self, game=None, network_args=None, actions=None, name=None, net_type="dqn",
+    # TODO why isn't it in init?
+    # There was some reason but can't remember it now.
+    def _initialize(self, game=None, network_args=None, actions=None, name=None,
+                    net_type="dqn", # TODO change to the actual class name?
                     reshaped_x=None,
                     reshaped_y=None,
                     skiprate=3,
@@ -68,25 +70,25 @@ class QEngine:
                     end_epsilon=0.1,
                     epsilon_decay_start_step=50000,
                     epsilon_decay_steps=100000,
-                    reward_scale=1.0,
+                    reward_scale=1.0,   # TODO useless?
                     melt_steps=10000,
 
                     shaping_on=False,
-                    count_states=False,
-                    count_states_type=None,
+                    count_states=False, # TODO change name
+                    count_states_type=None, # TODO only one hot is sensible
                     count_states_interval=1,
                     count_states_max=2100,
 
                     use_game_variables=True,
                     remember_n_actions=4,
-                    one_hot=False,
+                    one_hot=False, # TODO Change name so that it refers actions
 
-                    misc_scale=None,
+                    misc_scale=None, # TODO seems useless
                     results_file=None,
                     params_file=None,
                     config_file=None,
 
-                    no_timeout_terminal=False
+                    no_timeout_terminal=False # TODO seems useless
                     ):
 
         if game is not None:
@@ -270,16 +272,30 @@ class QEngine:
                 count_state_start = len(game_variables)
             else:
                 count_state_start = 0
+
             if self.count_states:
+                raw_time = raw_state.number
                 if self.count_states_type == "one_hot":
-                    # -1 is here cause counting starts with -1 instead of 0
-                    num_one_hot = (min(self.count_states_max, raw_state.number) - 1) / self.count_states_interval
+                    num_one_hot = (min(self.count_states_max, raw_time) - 1) / self.count_states_interval
                     state_number = np.zeros([self.count_states_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
+
+                    '''
+                    # TODO make it available in options
+                    # HACK1 that uses health and count as one hot at once
+                    hp = int(raw_state.game_variables[0])
+                    state = raw_time
+                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    state_number[hp - 1] = 1
+                    state_number[99 + state] = 1
+                    # HACK1 ends
+                    '''
+
+                # TODO remove binary option cause it sucks (first make sure that it is so)
                 elif self.count_states_type == "binary":
-                    state_number = to_bin_array(raw_state.number)
+                    state_number = to_bin_array(raw_time)
                 else:
-                    state_number = raw_state.number
+                    state_number = raw_time
 
                 state_misc[count_state_start:] = state_number
 
