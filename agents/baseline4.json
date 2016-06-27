@@ -7,7 +7,7 @@
   "net_type": "dqn",
   "reshaped_x": 84,
   "reshaped_y": 84,
-  "skiprate": 9,
+  "skiprate": 3,
   "remember_n_actions": 4,
   "one_hot": true,
   "history_length": 4,
@@ -28,6 +28,7 @@
 
   "use_game_variables": true,
   "count_states": false,
+
   "shaping_on": false,
   "misc_scale": null,
   "reward_scale": null
