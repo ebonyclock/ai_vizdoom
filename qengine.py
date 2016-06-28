@@ -83,7 +83,7 @@ class QEngine:
 
                     use_game_variables=True,
                     remember_n_actions=4,
-                    one_hot=False,  # TODO Change name so that it refers actions
+                    one_hot_nactions=False,
 
                     misc_scale=None,  # TODO seems useless
                     results_file=None,
@@ -144,7 +144,7 @@ class QEngine:
         self.steps = 0
         self.melt_steps = melt_steps
         self.backprop_start_step = max(backprop_start_step, batchsize)
-        self.one_hot = one_hot
+        self.one_hot_nactions = one_hot_nactions
         self.no_timeout_terminal = no_timeout_terminal
         if results_file:
             self.results_file = results_file
@@ -220,7 +220,7 @@ class QEngine:
         self.remember_n_actions = remember_n_actions
         if remember_n_actions > 0:
             self.remember_n_actions = remember_n_actions
-            if self.one_hot:
+            if self.one_hot_nactions:
                 self._action_len = int(2 ** floor(log(len(self.actions), 2)))
             else:
                 self._action_len = len(self.actions[0])
@@ -346,7 +346,7 @@ class QEngine:
             self._update_state()
 
     def set_last_action(self, index):
-        if self.one_hot:
+        if self.one_hot_nactions:
             self.last_action.fill(0)
             self.last_action[index] = 1
         else:

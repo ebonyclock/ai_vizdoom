@@ -10,7 +10,7 @@
   "reshaped_y": 84,
   "skiprate": 9,
   "remember_n_actions": 4,
-  "one_hot": true,
+  "one_hot_nactions": true,
   "history_length": 4,
   "melt_steps": 10000,
   "epsilon_decay_steps": 500000,

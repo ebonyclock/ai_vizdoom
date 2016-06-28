@@ -27,7 +27,7 @@ def _default_engine_args():
 
         "history_length": 4,
         "remember_n_actions": 4,
-        "one_hot": True,
+        "one_hot_nactions": True,
 
         "use_game_variables": True,
         "count_states": True,
