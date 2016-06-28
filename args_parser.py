@@ -22,7 +22,7 @@ def build_learn_parser():
                              help="load agent's specification from a json file")
 
     parser.add_argument('--config-file', '-c', metavar='<CONFIG_FILE>', dest="config_file", type=str, nargs=1,
-                        default=None,
+                        default=[None],
                         help='configuration file (used only when loading agent or using json)')
 
     parser.add_argument('--name', '-n', metavar='<NAME>', type=str, nargs=1, default=[None],

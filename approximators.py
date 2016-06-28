@@ -1,5 +1,4 @@
 from collections import OrderedDict
-
 import lasagne
 import lasagne.layers as ls
 import numpy as np
@@ -19,7 +18,7 @@ class DuellingMergeLayer(ls.MergeLayer):
 
     def get_output_for(self, inputs, **kwargs):
         m = tensor.mean(inputs[0], axis=1, keepdims=True)
-        sv = tensor.addbroadcast(inputs[1],1)
+        sv = tensor.addbroadcast(inputs[1], 1)
         return inputs[0] + sv - m
 
 
@@ -50,10 +49,10 @@ def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
 
 
 class DQN:
-    def __init__(self, state_format, actions_number, architecture=None, gamma=0.99, learning_rate=0.00025, ddqn=False):
+    def __init__(self, state_format, actions_number, gamma=0.99, learning_rate=0.00025, ddqn=False, **kwargs):
         self._inputs = dict()
-        if architecture is None:
-            architecture = dict()
+
+        architecture = kwargs
 
         self._loss_history = []
         self._misc_state_included = (state_format["s_misc"] > 0)
@@ -119,6 +118,11 @@ class DQN:
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)
+            if "additional_misc_layer" in kwargs:
+                misc_input_layer = ls.DenseLayer(misc_input_layer, int(kwargs["additional_misc_layer"]),
+                                                 nonlinearity=rectify,
+                                                 W=weights_init, b=lasagne.init.Constant(0.1))
+
             network = ls.ConcatLayer([network, misc_input_layer])
 
         network = ls.DenseLayer(network, 512, nonlinearity=rectify,
@@ -160,7 +164,7 @@ class DQN:
         updates = deepmind_rmsprop(loss, params, self._learning_rate)
 
         # TODO does FAST_RUN speed anything up?
-        mode = None #"FAST_RUN"
+        mode = None  # "FAST_RUN"
 
         s0_img = self._inputs["S0"]
         s1_img = self._inputs["S1"]
@@ -177,6 +181,7 @@ class DQN:
                                           name="learn_fn")
             self._evaluate = theano.function([s0_img], q, mode=mode, name="eval_fn")
         print "Network compiled."
+
     def learn(self, transitions):
         t = transitions
         if self._misc_state_included:
@@ -227,6 +232,10 @@ class DuelingDQN(DQN):
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)
+            if "additional_misc_layer" in kwargs:
+                misc_input_layer = ls.DenseLayer(misc_input_layer, int(kwargs["additional_misc_layer"]),
+                                                 nonlinearity=rectify,
+                                                 W=weights_init, b=lasagne.init.Constant(0.1))
             network = ls.ConcatLayer([network, misc_input_layer])
 
         # Duelling here

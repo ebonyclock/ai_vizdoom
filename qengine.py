@@ -7,8 +7,10 @@ from vizdoom import *
 import cv2
 from lasagne.layers import get_all_param_values
 from lasagne.layers import set_all_param_values
-from approximators import *
+import approximators
+import numpy as np
 from replay_memory import ReplayMemory
+from pydoc import locate
 
 
 def generate_default_actions(the_game):
@@ -57,7 +59,7 @@ class QEngine:
     # TODO why isn't it in init?
     # There was some reason but can't remember it now.
     def _initialize(self, game=None, network_args=None, actions=None, name=None,
-                    net_type="dqn", # TODO change to the actual class name?
+                    net_type="dqn",  # TODO change to the actual class name?
                     reshaped_x=None,
                     reshaped_y=None,
                     skiprate=3,
@@ -70,25 +72,25 @@ class QEngine:
                     end_epsilon=0.1,
                     epsilon_decay_start_step=50000,
                     epsilon_decay_steps=100000,
-                    reward_scale=1.0,   # TODO useless?
+                    reward_scale=1.0,  # TODO useless?
                     melt_steps=10000,
 
                     shaping_on=False,
-                    count_states=False, # TODO change name
-                    count_states_type=None, # TODO only one hot is sensible
+                    count_states=False,  # TODO change name
+                    count_states_type=None,  # TODO only one hot is sensible
                     count_states_interval=1,
                     count_states_max=2100,
 
                     use_game_variables=True,
                     remember_n_actions=4,
-                    one_hot=False, # TODO Change name so that it refers actions
+                    one_hot=False,  # TODO Change name so that it refers actions
 
-                    misc_scale=None, # TODO seems useless
+                    misc_scale=None,  # TODO seems useless
                     results_file=None,
                     params_file=None,
                     config_file=None,
 
-                    no_timeout_terminal=False # TODO seems useless
+                    no_timeout_terminal=False  # TODO seems useless
                     ):
 
         if game is not None:
@@ -250,11 +252,14 @@ class QEngine:
         network_args["actions_number"] = len(self.actions)
 
         if net_type in ("dqn", None, ""):
-            self._evaluator = DQN(**network_args)
+            self._evaluator = approximators.DQN(**network_args)
         elif net_type in ["duelling", "dueling"]:
-            self._evaluator = DuelingDQN(**network_args)
+            self._evaluator = approximators.DuelingDQN(**network_args)
         else:
-            raise Exception("Unsupported approximator type. Supported: dqn, duel(l)ing")
+            if locate('approximators.' + net_type) is not None:
+                self._evaluator = locate('approximators.' + net_type)(**network_args)
+            else:
+                raise Exception("Unsupported approximator type.")
 
         self._current_image_state = np.zeros(img_shape, dtype=np.float32)
 
@@ -276,10 +281,10 @@ class QEngine:
             if self.count_states:
                 raw_time = raw_state.number
                 if self.count_states_type == "one_hot":
+
                     num_one_hot = (min(self.count_states_max, raw_time) - 1) / self.count_states_interval
                     state_number = np.zeros([self.count_states_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
-
                     '''
                     # TODO make it available in options
                     # HACK1 that uses health and count as one hot at once
@@ -290,6 +295,14 @@ class QEngine:
                     state_number[99 + state] = 1
                     # HACK1 ends
                     '''
+                    '''
+                    # TODO make it available in options
+                    # HACK2 that uses health as one hot
+                    hp = int(raw_state.game_variables[0])
+                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    state_number[hp - 1] = 1
+                    # HACK2 ends
+                     '''
 
                 # TODO remove binary option cause it sucks (first make sure that it is so)
                 elif self.count_states_type == "binary":
@@ -386,6 +399,7 @@ class QEngine:
             self.game.advance_action(1, False, True)
             sleep(sleep_time)
         self.game.advance_action()
+
         sleep(sleep_time)
 
     def check_timeout(self):

@@ -16,7 +16,6 @@ def _default_engine_args():
     default_network_args = {
         "ddqn": True,
         "learning_rate": 0.00025,
-        "architecture": None,
         "gamma": 1.0
     }
 
