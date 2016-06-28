@@ -25,10 +25,10 @@
 
   "batchsize": 64,
   "name": "karchev",
-  "count_states": true,
-  "count_states_type": "one_hot",
-  "count_states_interval": 10,
-  "count_states_max": 210,
+  "count_time": true,
+  "one_hot_time": true,
+  "count_time_interval": 10,
+  "count_time_max": 210,
 
   "use_game_variables": true,
   "shaping_on": false,

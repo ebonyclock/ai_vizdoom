@@ -76,10 +76,10 @@ class QEngine:
                     melt_steps=10000,
 
                     shaping_on=False,
-                    count_states=False,  # TODO change name
-                    count_states_type=None,  # TODO only one hot is sensible
-                    count_states_interval=1,
-                    count_states_max=2100,
+                    count_time=False,
+                    one_hot_time=False,
+                    count_time_interval=1,
+                    count_time_max=2100,
 
                     use_game_variables=True,
                     remember_n_actions=4,
@@ -105,25 +105,19 @@ class QEngine:
         if network_args is None:
             network_args = dict()
 
-        if count_states:
-            self.count_states = bool(count_states)
-            if self.count_states:
-                if count_states_type is not None:
-                    self.count_states_type = count_states_type
-                    if self.count_states_type == "one_hot":
-                        self.count_states_max = int(count_states_max)
-                        self.count_states_interval = int(count_states_interval)
-                        self.count_states_len = int(ceil(self.count_states_max / self.count_states_interval))
-                    elif self.count_states_type == "binary":
-                        self.count_states_len = BITS_FOR_COUNT
-                    else:
-                        raise Exception("Unsupported count states type:" + count_states_type)
+        if count_time:
+            self.count_time = bool(count_time)
+            if self.count_time:
+                self.one_hot_time = one_hot_time
+                if one_hot_time:
+                    self.count_time_max = int(count_time_max)
+                    self.count_time_interval = int(count_time_interval)
+                    self.count_time_len = int(ceil(self.count_time_max / self.count_time_interval))
                 else:
-                    self.count_states_type = None
-                    self.count_states_len = 1
+                    self.count_time_len = 1
         else:
-            self.count_states_len = 0
-            self.count_states = False
+            self.count_time_len = 0
+            self.count_time = False
 
         self.name = name
         if reward_scale is not None:
@@ -212,9 +206,9 @@ class QEngine:
         self.convert_image_fun = convert
 
         if self.use_game_variables:
-            single_state_misc_len = int(self.game.get_available_game_variables_size() + self.count_states_len)
+            single_state_misc_len = int(self.game.get_available_game_variables_size() + self.count_time_len)
         else:
-            single_state_misc_len = int(self.count_states_len)
+            single_state_misc_len = int(self.count_time_len)
         self.single_state_misc_len = single_state_misc_len
 
         self.remember_n_actions = remember_n_actions
@@ -274,23 +268,23 @@ class QEngine:
             if self.use_game_variables:
                 game_variables = raw_state.game_variables.astype(np.float32)
                 state_misc[0:len(game_variables)] = game_variables
-                count_state_start = len(game_variables)
+                count_time_start = len(game_variables)
             else:
-                count_state_start = 0
+                count_time_start = 0
 
-            if self.count_states:
+            if self.count_time:
                 raw_time = raw_state.number
-                if self.count_states_type == "one_hot":
+                if self.one_hot_time:
 
-                    num_one_hot = (min(self.count_states_max, raw_time) - 1) / self.count_states_interval
-                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    num_one_hot = (min(self.count_time_max, raw_time) - 1) / self.count_time_interval
+                    state_number = np.zeros([self.count_time_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
                     '''
                     # TODO make it available in options
                     # HACK1 that uses health and count as one hot at once
                     hp = int(raw_state.game_variables[0])
                     state = raw_time
-                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    state_number = np.zeros([self.count_time_len], dtype=np.float32)
                     state_number[hp - 1] = 1
                     state_number[99 + state] = 1
                     # HACK1 ends
@@ -299,18 +293,14 @@ class QEngine:
                     # TODO make it available in options
                     # HACK2 that uses health as one hot
                     hp = int(raw_state.game_variables[0])
-                    state_number = np.zeros([self.count_states_len], dtype=np.float32)
+                    state_number = np.zeros([self.count_time_len], dtype=np.float32)
                     state_number[hp - 1] = 1
                     # HACK2 ends
                      '''
-
-                # TODO remove binary option cause it sucks (first make sure that it is so)
-                elif self.count_states_type == "binary":
-                    state_number = to_bin_array(raw_time)
                 else:
                     state_number = raw_time
 
-                state_misc[count_state_start:] = state_number
+                state_misc[count_time_start:] = state_number
 
             if self._misc_scale is not None:
                 state_misc = state_misc * self._misc_scale

@@ -28,10 +28,10 @@
   "name": "karchev",
 
   "use_game_variables": true,
-  "count_states": true,
-  "count_states_type": "one_hot",
-  "count_states_interval": 1,
-  "count_states_max": 210,
+  "count_time": true,
+  "one_hot_time": true,
+  "count_time_interval": 1,
+  "count_time_max": 210,
 
   "shaping_on": false,
   "misc_scale": null,

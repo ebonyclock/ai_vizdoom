@@ -27,7 +27,7 @@
   "name": "baseline4",
 
   "use_game_variables": true,
-  "count_states": false,
+  "count_time": false,
 
   "shaping_on": false,
   "misc_scale": null,

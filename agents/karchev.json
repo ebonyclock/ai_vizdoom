@@ -27,7 +27,7 @@
   "name": "karchev",
 
   "use_game_variables": true,
-  "count_states": false,
+  "count_states": time,
   "shaping_on": false,
   "misc_scale": null,
   "reward_scale": null

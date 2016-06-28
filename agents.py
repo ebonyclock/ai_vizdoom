@@ -30,7 +30,7 @@ def _default_engine_args():
         "one_hot_nactions": True,
 
         "use_game_variables": True,
-        "count_states": True,
+        "count_time": True,
         "shaping_on": False,
 
         "melt_steps": 10000,
@@ -146,7 +146,7 @@ def health_baseline(name="health_baseline4"):
         "name": name,
         "config_file": "config/health_gathering.cfg",
         "skiprate": 9,
-        "count_states": False,
+        "count_time": False,
         "reshaped_x": 84,
         "reshaped_y": 84,
         "net_type": "dqn",

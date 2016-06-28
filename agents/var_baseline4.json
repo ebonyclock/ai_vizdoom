@@ -7,9 +7,9 @@
   "net_type": "dqn",
   "reshaped_x": 84,
   "reshaped_y": 84,
-  "skiprate": 9,
+  "skiprate": 3,
   "remember_n_actions": 4,
-  "one_hot": true,
+  "one_hot_nactions": true,
   "history_length": 4,
   "melt_steps": 10000,
   "epsilon_decay_steps": 500000,
@@ -26,10 +26,16 @@
   "batchsize": 64,
   "name": "baseline4",
 
-  "use_game_variables": true,
-  "count_states": false,
+
+
   "shaping_on": false,
   "misc_scale": null,
-  "reward_scale": null
+  "reward_scale": null,
+
+  "use_game_variables": false,
+  "count_time": true,
+  "one_hot_time": true,
+  "count_time_interval": 10,
+  "count_time_max": 210,
 
 }
