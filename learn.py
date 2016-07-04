@@ -118,7 +118,7 @@ while epoch - 1 < epochs:
         print "Training results:"
         print engine.get_actions_stats(clear=True).reshape([-1, 4])
 
-        mean_loss = engine._evaluator.get_mean_loss()
+        mean_loss = engine.get_mean_loss()
 
         if len(train_rewards) == 0:
             train_rewards.append(-123)

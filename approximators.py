@@ -50,53 +50,52 @@ def deepmind_rmsprop(loss_or_grads, params, learning_rate=0.00025,
 
 class DQN:
     def __init__(self, state_format, actions_number, gamma=0.99, learning_rate=0.00025, ddqn=False, **kwargs):
-        self._inputs = dict()
-
+        self.inputs = dict()
+        self.learning_rate = learning_rate
         architecture = kwargs
 
-        self._loss_history = []
-        self._misc_state_included = (state_format["s_misc"] > 0)
-        self._gamma = np.float64(gamma)
+        self.loss_history = []
+        self.misc_state_included = (state_format["s_misc"] > 0)
+        self.gamma = np.float64(gamma)
 
-        self._inputs["S0"] = tensor.tensor4("S0")
-        self._inputs["S1"] = tensor.tensor4("S1")
-        self._inputs["A"] = tensor.ivector("Action")
-        self._inputs["R"] = tensor.vector("Reward")
-        self._inputs["Nonterminal"] = tensor.bvector("Nonterminal")
-        if self._misc_state_included:
-            self._inputs["S0_misc"] = tensor.matrix("S0_misc")
-            self._inputs["S1_misc"] = tensor.matrix("S1_misc")
-            self._misc_len = state_format["s_misc"]
+        self.inputs["S0"] = tensor.tensor4("S0")
+        self.inputs["S1"] = tensor.tensor4("S1")
+        self.inputs["A"] = tensor.ivector("Action")
+        self.inputs["R"] = tensor.vector("Reward")
+        self.inputs["Nonterminal"] = tensor.bvector("Nonterminal")
+        if self.misc_state_included:
+            self.inputs["S0_misc"] = tensor.matrix("S0_misc")
+            self.inputs["S1_misc"] = tensor.matrix("S1_misc")
+            self.misc_len = state_format["s_misc"]
         else:
-            self._misc_len = None
+            self.misc_len = None
 
         # save it for the evaluation reshape
         # TODO get rid of this?
-        self._single_image_input_shape = (1,) + tuple(state_format["s_img"])
+        self.single_image_input_shape = (1,) + tuple(state_format["s_img"])
 
         architecture["img_input_shape"] = (None,) + tuple(state_format["s_img"])
-        architecture["misc_len"] = self._misc_len
+        architecture["misc_len"] = self.misc_len
         architecture["output_size"] = actions_number
 
-        if self._misc_state_included:
-            self.network, self.input_layers = self._initialize_network(img_input=self._inputs["S0"],
-                                                                       misc_input=self._inputs["S0_misc"],
+        if self.misc_state_included:
+            self.network, self.input_layers = self._initialize_network(img_input=self.inputs["S0"],
+                                                                       misc_input=self.inputs["S0_misc"],
                                                                        **architecture)
-            self.frozen_network, _ = self._initialize_network(img_input=self._inputs["S1"],
-                                                              misc_input=self._inputs["S1_misc"], **architecture)
-            self._alternate_inputs = {
-                self.input_layers[0]: self._inputs["S1"],
-                self.input_layers[1]: self._inputs["S1_misc"]
+            self.frozen_network, _ = self._initialize_network(img_input=self.inputs["S1"],
+                                                              misc_input=self.inputs["S1_misc"], **architecture)
+            self.alternate_inputs = {
+                self.input_layers[0]: self.inputs["S1"],
+                self.input_layers[1]: self.inputs["S1_misc"]
             }
         else:
 
-            self.network, self.input_layers = self._initialize_network(img_input=self._inputs["S0"], **architecture)
-            self.frozen_network, _ = self._initialize_network(img_input=self._inputs["S1"], **architecture)
-            self._alternate_inputs = {
-                self.input_layers[0]: self._inputs["S1"]
+            self.network, self.input_layers = self._initialize_network(img_input=self.inputs["S0"], **architecture)
+            self.frozen_network, _ = self._initialize_network(img_input=self.inputs["S1"], **architecture)
+            self.alternate_inputs = {
+                self.input_layers[0]: self.inputs["S1"]
             }
         # print "Network initialized."
-        self._learning_rate = learning_rate
         self._compile(ddqn)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
@@ -114,7 +113,7 @@ class DQN:
         network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
                                  b=lasagne.init.Constant(0.1), stride=1)
 
-        if self._misc_state_included:
+        if self.misc_state_included:
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)
@@ -133,14 +132,14 @@ class DQN:
 
     def _compile(self, ddqn):
 
-        a = self._inputs["A"]
-        r = self._inputs["R"]
-        nonterminal = self._inputs["Nonterminal"]
+        a = self.inputs["A"]
+        r = self.inputs["R"]
+        nonterminal = self.inputs["Nonterminal"]
 
         q = ls.get_output(self.network, deterministic=True)
 
         if ddqn:
-            q2 = ls.get_output(self.network, deterministic=True, inputs=self._alternate_inputs)
+            q2 = ls.get_output(self.network, deterministic=True, inputs=self.alternate_inputs)
             q2_action_ref = tensor.argmax(q2, axis=1)
 
             q2_frozen = ls.get_output(self.frozen_network, deterministic=True)
@@ -148,7 +147,7 @@ class DQN:
         else:
             q2_max = tensor.max(ls.get_output(self.frozen_network, deterministic=True), axis=1)
 
-        target_q = r + self._gamma * nonterminal * q2_max
+        target_q = r + self.gamma * nonterminal * q2_max
 
         # Loss
         abs_err = abs(q[tensor.arange(q.shape[0]), a] - target_q)
@@ -161,17 +160,17 @@ class DQN:
         params = ls.get_all_params(self.network, trainable=True)
 
         # updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
-        updates = deepmind_rmsprop(loss, params, self._learning_rate)
+        updates = deepmind_rmsprop(loss, params, self.learning_rate)
 
         # TODO does FAST_RUN speed anything up?
         mode = None  # "FAST_RUN"
 
-        s0_img = self._inputs["S0"]
-        s1_img = self._inputs["S1"]
+        s0_img = self.inputs["S0"]
+        s1_img = self.inputs["S1"]
         print "Compiling the network..."
-        if self._misc_state_included:
-            s0_misc = self._inputs["S0_misc"]
-            s1_misc = self._inputs["S1_misc"]
+        if self.misc_state_included:
+            s0_misc = self.inputs["S0_misc"]
+            s1_misc = self.inputs["S1_misc"]
             self._learn = theano.function([s0_img, s0_misc, s1_img, s1_misc, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
             self._evaluate = theano.function([s0_img, s0_misc], q, mode=mode,
@@ -184,26 +183,26 @@ class DQN:
 
     def learn(self, transitions):
         t = transitions
-        if self._misc_state_included:
+        if self.misc_state_included:
             loss = self._learn(t["s1_img"], t["s1_misc"], t["s2_img"], t["s2_misc"], t["a"], t["r"], t["nonterminal"])
         else:
             loss = self._learn(t["s1_img"], t["s2_img"], t["a"], t["r"], t["nonterminal"])
-        self._loss_history.append(loss)
+        self.loss_history.append(loss)
 
     def estimate_best_action(self, state):
-        if self._misc_state_included:
-            qvals = self._evaluate(state[0].reshape(self._single_image_input_shape),
-                                   state[1].reshape(1, self._misc_len))
+        if self.misc_state_included:
+            qvals = self._evaluate(state[0].reshape(self.single_image_input_shape),
+                                   state[1].reshape(1, self.misc_len))
             a = np.argmax(qvals)
         else:
-            qvals = self._evaluate(state[0].reshape(self._single_image_input_shape))
+            qvals = self._evaluate(state[0].reshape(self.single_image_input_shape))
             a = np.argmax(qvals)
         return a
 
     def get_mean_loss(self, clear=True):
-        m = np.mean(self._loss_history)
+        m = np.mean(self.loss_history)
         if clear:
-            self._loss_history = []
+            self.loss_history = []
         return m
 
     def get_network(self):
@@ -228,7 +227,7 @@ class DuelingDQN(DQN):
         network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
                                  b=lasagne.init.Constant(.1), stride=1)
 
-        if self._misc_state_included:
+        if self.misc_state_included:
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)

@@ -40,10 +40,6 @@ def initialize_doom(config_file, grayscale=True, visible=False):
 BITS_FOR_COUNT = 16
 
 
-def to_bin_array(x):
-    return [int(x) for x in bin(x)[2:].zfill(BITS_FOR_COUNT)]
-
-
 class QEngine:
     def __init__(self, **kwargs):
         self.setup = kwargs
@@ -169,9 +165,9 @@ class QEngine:
         self.actions_stats = np.zeros([self.actions_num], np.int)
 
         # changes img_shape according to the history size
-        self._channels = self.game.get_screen_channels()
+        self.channels = self.game.get_screen_channels()
         if self.history_length > 1:
-            self._channels *= self.history_length
+            self.channels *= self.history_length
 
         if reshaped_x is None:
             x = self.game.get_screen_width()
@@ -188,7 +184,7 @@ class QEngine:
                 y = reshaped_y
                 scale_y = float(y) / self.game.get_screen_height()
 
-        img_shape = [self._channels, y, x]
+        img_shape = [self.channels, y, x]
 
         # TODO check if it is slow (it seems that no)
         if scale_x == 1 and scale_y == 1:
@@ -215,47 +211,47 @@ class QEngine:
         if remember_n_actions > 0:
             self.remember_n_actions = remember_n_actions
             if self.one_hot_nactions:
-                self._action_len = int(2 ** floor(log(len(self.actions), 2)))
+                self.action_len = int(2 ** floor(log(len(self.actions), 2)))
             else:
-                self._action_len = len(self.actions[0])
-            self.last_action = np.zeros([self._action_len], dtype=np.float32)
-            self._last_n_actions = np.zeros([remember_n_actions * self._action_len], dtype=np.float32)
-            self._total_misc_len = int(single_state_misc_len * self.history_length + len(self._last_n_actions))
+                self.action_len = len(self.actions[0])
+            self.last_action = np.zeros([self.action_len], dtype=np.float32)
+            self.last_n_actions = np.zeros([remember_n_actions * self.action_len], dtype=np.float32)
+            self.total_misc_len = int(single_state_misc_len * self.history_length + len(self.last_n_actions))
 
         else:
-            self._total_misc_len = int(single_state_misc_len * self.history_length)
+            self.total_misc_len = int(single_state_misc_len * self.history_length)
 
-        if self._total_misc_len > 0:
-            self._misc_state_included = True
-            self._current_misc_state = np.zeros(self._total_misc_len, dtype=np.float32)
+        if self.total_misc_len > 0:
+            self.misc_state_included = True
+            self.current_misc_state = np.zeros(self.total_misc_len, dtype=np.float32)
             if single_state_misc_len > 0:
-                self._state_misc_buffer = np.zeros(single_state_misc_len, dtype=np.float32)
+                self.state_misc_buffer = np.zeros(single_state_misc_len, dtype=np.float32)
                 if misc_scale is not None:
-                    self._misc_scale = np.array(misc_scale, dtype=np.float32)
+                    self.misc_scale = np.array(misc_scale, dtype=np.float32)
                 else:
-                    self._misc_scale = None
+                    self.misc_scale = None
         else:
-            self._misc_state_included = False
+            self.misc_state_included = False
 
         state_format = dict()
         state_format["s_img"] = img_shape
-        state_format["s_misc"] = self._total_misc_len
+        state_format["s_misc"] = self.total_misc_len
         self.replay_memory = ReplayMemory(state_format, replay_memory_size, batchsize)
 
         network_args["state_format"] = state_format
         network_args["actions_number"] = len(self.actions)
 
         if net_type in ("dqn", None, ""):
-            self._evaluator = approximators.DQN(**network_args)
+            self.approximator = approximators.DQN(**network_args)
         elif net_type in ["duelling", "dueling"]:
-            self._evaluator = approximators.DuelingDQN(**network_args)
+            self.approximator = approximators.DuelingDQN(**network_args)
         else:
             if locate('approximators.' + net_type) is not None:
-                self._evaluator = locate('approximators.' + net_type)(**network_args)
+                self.approximator = locate('approximators.' + net_type)(**network_args)
             else:
                 raise Exception("Unsupported approximator type.")
 
-        self._current_image_state = np.zeros(img_shape, dtype=np.float32)
+        self.current_image_state = np.zeros(img_shape, dtype=np.float32)
 
     def _update_state(self):
         raw_state = self.game.get_state()
@@ -263,7 +259,7 @@ class QEngine:
         state_misc = None
 
         if self.single_state_misc_len > 0:
-            state_misc = self._state_misc_buffer
+            state_misc = self.state_misc_buffer
 
             if self.use_game_variables:
                 game_variables = raw_state.game_variables.astype(np.float32)
@@ -302,31 +298,31 @@ class QEngine:
 
                 state_misc[count_time_start:] = state_number
 
-            if self._misc_scale is not None:
-                state_misc = state_misc * self._misc_scale
+            if self.misc_scale is not None:
+                state_misc = state_misc * self.misc_scale
 
         if self.history_length > 1:
-            pure_channels = self._channels / self.history_length
-            self._current_image_state[0:-pure_channels] = self._current_image_state[pure_channels:]
-            self._current_image_state[-pure_channels:] = img
+            pure_channels = self.channels / self.history_length
+            self.current_image_state[0:-pure_channels] = self.current_image_state[pure_channels:]
+            self.current_image_state[-pure_channels:] = img
 
             if self.single_state_misc_len > 0:
                 misc_len = len(state_misc)
                 hist = self.history_length
-                self._current_misc_state[0:(hist - 1) * misc_len] = self._current_misc_state[misc_len:hist * misc_len]
+                self.current_misc_state[0:(hist - 1) * misc_len] = self.current_misc_state[misc_len:hist * misc_len]
 
-                self._current_misc_state[(hist - 1) * misc_len:hist * misc_len] = state_misc
+                self.current_misc_state[(hist - 1) * misc_len:hist * misc_len] = state_misc
 
         else:
-            self._current_image_state[:] = img
+            self.current_image_state[:] = img
             if self.single_state_misc_len > 0:
-                self._current_misc_state[0:len(state_misc)] = state_misc
+                self.current_misc_state[0:len(state_misc)] = state_misc
 
         if self.remember_n_actions:
-            self._last_n_actions[:-self._action_len] = self._last_n_actions[self._action_len:]
+            self.last_n_actions[:-self.action_len] = self.last_n_actions[self.action_len:]
 
-            self._last_n_actions[-self._action_len:] = self.last_action
-            self._current_misc_state[-len(self._last_n_actions):] = self._last_n_actions
+            self.last_n_actions[-self.action_len:] = self.last_action
+            self.current_misc_state[-len(self.last_n_actions):] = self.last_n_actions
 
     def new_episode(self, update_state=False):
         self.game.new_episode()
@@ -344,34 +340,34 @@ class QEngine:
 
     # Return current state including history
     def _current_state(self):
-        if self._misc_state_included:
-            s = [self._current_image_state, self._current_misc_state]
+        if self.misc_state_included:
+            s = [self.current_image_state, self.current_misc_state]
         else:
-            s = [self._current_image_state]
+            s = [self.current_image_state]
         return s
 
     # Return current state's COPY including history.
     def _current_state_copy(self):
-        if self._misc_state_included:
-            s = [self._current_image_state.copy(), self._current_misc_state.copy()]
+        if self.misc_state_included:
+            s = [self.current_image_state.copy(), self.current_misc_state.copy()]
         else:
-            s = [self._current_image_state.copy()]
+            s = [self.current_image_state.copy()]
         return s
 
     # Sets the whole state to zeros. 
     def reset_state(self):
-        self._current_image_state.fill(0.0)
+        self.current_image_state.fill(0.0)
 
-        if self._misc_state_included:
-            self._current_misc_state.fill(0.0)
+        if self.misc_state_included:
+            self.current_misc_state.fill(0.0)
             if self.remember_n_actions > 0:
                 self.set_last_action(0)
-                self._last_n_actions.fill(0)
+                self.last_n_actions.fill(0)
 
     def make_step(self):
         self._update_state()
         # TODO Check if not making the copy still works
-        a = self._evaluator.estimate_best_action(self._current_state_copy())
+        a = self.approximator.estimate_best_action(self._current_state_copy())
         self.actions_stats[a] += 1
         self.game.make_action(self.actions[a], self.skiprate + 1)
         if self.remember_n_actions:
@@ -379,7 +375,7 @@ class QEngine:
 
     def make_sleep_step(self, sleep_time=1 / 35.0):
         self._update_state()
-        a = self._evaluator.estimate_best_action(self._current_state_copy())
+        a = self.approximator.estimate_best_action(self._current_state_copy())
         self.actions_stats[a] += 1
 
         self.game.set_action(self.actions[a])
@@ -396,7 +392,7 @@ class QEngine:
         return (self.game.get_episode_time() - self.game.get_episode_start_time() >= self.game.get_episode_timeout())
 
     # Performs a learning step according to epsilon-greedy policy.
-    # The step spans self._skiprate +1 actions.
+    # The step spans self.skiprate +1 actions.
     def make_learning_step(self):
         self.steps += 1
         # epsilon decay
@@ -410,7 +406,7 @@ class QEngine:
         if self.epsilon >= random.random():
             a = random.randint(0, len(self.actions) - 1)
         else:
-            a = self._evaluator.estimate_best_action(s)
+            a = self.approximator.estimate_best_action(s)
         self.actions_stats[a] += 1
 
         # make action and get the reward
@@ -439,11 +435,11 @@ class QEngine:
         # Perform q-learning once for a while
         if self.replay_memory.size >= self.backprop_start_step and self.steps % self.update_pattern[0] == 0:
             for a in xrange(self.update_pattern[1]):
-                self._evaluator.learn(self.replay_memory.get_sample())
+                self.approximator.learn(self.replay_memory.get_sample())
 
         # Melt the network sometimes
         if self.steps % self.melt_steps == 0:
-            self._evaluator.melt()
+            self.approximator.melt()
 
     # Runs a single episode in current mode. It ignores the mode if learn==true/false
     def run_episode(self, sleep_time=0):
@@ -476,7 +472,7 @@ class QEngine:
         return self.epsilon
 
     def get_network(self):
-        return self._evaluator.network
+        return self.approximator.network
 
     def set_epsilon(self, eps):
         self.epsilon = eps
@@ -487,12 +483,15 @@ class QEngine:
     def get_skiprate(self):
         return self.skiprate
 
+    def get_mean_loss(self):
+        return self.approximator.get_mean_loss()
+
     # Saves network weights to a file
     def save_params(self, filename, quiet=False):
         if not quiet:
             print "Saving network weights to " + filename + "..."
         self._prepare_for_save()
-        params = get_all_param_values(self._evaluator.network)
+        params = get_all_param_values(self.approximator.network)
         pickle.dump(params, open(filename, "wb"))
         if not quiet:
             print "Saving finished."
@@ -502,8 +501,8 @@ class QEngine:
         if not quiet:
             print "Loading network weights from " + filename + "..."
         params = pickle.load(open(filename, "rb"))
-        set_all_param_values(self._evaluator.network, params)
-        set_all_param_values(self._evaluator.frozen_network, params)
+        set_all_param_values(self.approximator.network, params)
+        set_all_param_values(self.approximator.frozen_network, params)
 
         if not quiet:
             print "Loading finished."
@@ -554,8 +553,8 @@ class QEngine:
 
         qengine_args["game"] = game
         qengine = QEngine(**qengine_args)
-        set_all_param_values(qengine._evaluator.network, network_weights)
-        set_all_param_values(qengine._evaluator.frozen_network, network_weights)
+        set_all_param_values(qengine.approximator.network, network_weights)
+        set_all_param_values(qengine.approximator.frozen_network, network_weights)
 
         if not quiet:
             print "Loading finished."
@@ -570,7 +569,7 @@ class QEngine:
         if not quiet:
             print "Saving qengine to " + filename + "..."
         self._prepare_for_save()
-        network_params = get_all_param_values(self._evaluator.network)
+        network_params = get_all_param_values(self.approximator.network)
         params = [self.setup, network_params]
         pickle.dump(params, open(filename, "wb"))
         if not quiet:
