@@ -2,14 +2,13 @@
   "network_args": {
     "ddqn": true,
     "learning_rate": 0.00025,
-    "gamma": 0.99
+    "gamma": 0.99,
   },
-  "net_type": "dqn",
+  "net_type": "DQNHealthFC",
   "reshaped_x": 84,
   "reshaped_y": 84,
-  "skiprate": 3,
-  "remember_n_actions": 4,
-  "one_hot_nactions": true,
+  "skiprate": 9,
+
   "history_length": 4,
   "melt_steps": 10000,
   "epsilon_decay_steps": 500000,
@@ -26,16 +25,19 @@
   "batchsize": 64,
   "name": "baseline4",
 
-
-
   "shaping_on": false,
   "misc_scale": null,
   "reward_scale": null,
 
-  "use_game_variables": false,
+  "remember_n_actions": 4,
+  "one_hot_nactions": true,
+  "rearrange_misc": true,
+  "use_game_variables": true,
   "count_time": true,
-  "one_hot_time": true,
-  "count_time_interval": 10,
-  "count_time_max": 210,
+  "one_hot_time": false,
+
+  "count_time_interval": 1,
+  "count_time_max": 210
+
 
 }
