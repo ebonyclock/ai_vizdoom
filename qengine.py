@@ -150,8 +150,7 @@ class QEngine:
         else:
             self.use_game_variables = False
 
-        if self.shaping_on:
-            self.last_shaping_reward = 0
+        self.last_shaping_reward = 0
 
         self.learning_mode = True
 
@@ -159,9 +158,7 @@ class QEngine:
             self.actions = generate_default_actions(self.game)
         else:
             self.actions = actions
-
         self.actions_num = len(self.actions)
-
         self.actions_stats = np.zeros([self.actions_num], np.int)
 
         # changes img_shape according to the history size
@@ -199,7 +196,7 @@ class QEngine:
                     # new_image[i] = skimage.transform.resize(img[i], (y,x), preserve_range=True)
                     new_image[i] = cv2.resize(img[i], (x, y), interpolation=cv2.INTER_AREA)
                 return new_image
-        self.convert_image_fun = convert
+        self.convert_image = convert
 
         if self.use_game_variables:
             single_state_misc_len = int(self.game.get_available_game_variables_size() + self.count_time_len)
@@ -208,6 +205,8 @@ class QEngine:
         self.single_state_misc_len = single_state_misc_len
 
         self.remember_n_actions = remember_n_actions
+        total_misc_len = int(single_state_misc_len * self.history_length)
+
         if remember_n_actions > 0:
             self.remember_n_actions = remember_n_actions
             if self.one_hot_nactions:
@@ -216,16 +215,12 @@ class QEngine:
                 self.action_len = len(self.actions[0])
             self.last_action = np.zeros([self.action_len], dtype=np.float32)
             self.last_n_actions = np.zeros([remember_n_actions * self.action_len], dtype=np.float32)
-            self.total_misc_len = int(single_state_misc_len * self.history_length + len(self.last_n_actions))
+            total_misc_len += len(self.last_n_actions)
 
-        else:
-            self.total_misc_len = int(single_state_misc_len * self.history_length)
-
-        if self.total_misc_len > 0:
+        if total_misc_len > 0:
             self.misc_state_included = True
-            self.current_misc_state = np.zeros(self.total_misc_len, dtype=np.float32)
+            self.current_misc_state = np.zeros(total_misc_len, dtype=np.float32)
             if single_state_misc_len > 0:
-                self.state_misc_buffer = np.zeros(single_state_misc_len, dtype=np.float32)
                 if misc_scale is not None:
                     self.misc_scale = np.array(misc_scale, dtype=np.float32)
                 else:
@@ -235,7 +230,7 @@ class QEngine:
 
         state_format = dict()
         state_format["s_img"] = img_shape
-        state_format["s_misc"] = self.total_misc_len
+        state_format["s_misc"] = total_misc_len
         self.replay_memory = ReplayMemory(state_format, replay_memory_size, batchsize)
 
         network_args["state_format"] = state_format
@@ -255,12 +250,10 @@ class QEngine:
 
     def _update_state(self):
         raw_state = self.game.get_state()
-        img = self.convert_image_fun(raw_state.image_buffer)
+        img = self.convert_image(raw_state.image_buffer)
         state_misc = None
-
         if self.single_state_misc_len > 0:
-            state_misc = self.state_misc_buffer
-
+            state_misc = np.zeros(self.single_state_misc_len, dtype=np.float32)
             if self.use_game_variables:
                 game_variables = raw_state.game_variables.astype(np.float32)
                 state_misc[0:len(game_variables)] = game_variables

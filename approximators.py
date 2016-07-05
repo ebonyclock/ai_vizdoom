@@ -79,28 +79,29 @@ class DQN:
         architecture["output_size"] = actions_number
 
         if self.misc_state_included:
-            self.network, self.input_layers = self._initialize_network(img_input=self.inputs["S0"],
-                                                                       misc_input=self.inputs["S0_misc"],
-                                                                       **architecture)
-            self.frozen_network, _ = self._initialize_network(img_input=self.inputs["S1"],
-                                                              misc_input=self.inputs["S1_misc"], **architecture)
-            self.alternate_inputs = {
-                self.input_layers[0]: self.inputs["S1"],
-                self.input_layers[1]: self.inputs["S1_misc"]
-            }
+            self.network, input_layers, _ = self._initialize_network(img_input=self.inputs["S0"],
+                                                                     misc_input=self.inputs["S0_misc"],
+                                                                     **architecture)
+            self.frozen_network, _, alternate_inputs = self._initialize_network(img_input=self.inputs["S1"],
+                                                                                misc_input=self.inputs["S1_misc"],
+                                                                                **architecture)
         else:
 
-            self.network, self.input_layers = self._initialize_network(img_input=self.inputs["S0"], **architecture)
-            self.frozen_network, _ = self._initialize_network(img_input=self.inputs["S1"], **architecture)
-            self.alternate_inputs = {
-                self.input_layers[0]: self.inputs["S1"]
-            }
+            self.network, input_layers, _ = self._initialize_network(img_input=self.inputs["S0"], **architecture)
+            self.frozen_network, _, alternate_inputs = self._initialize_network(img_input=self.inputs["S1"],
+                                                                                **architecture)
+
+        self.alternate_input_mappings = {}
+        for layer, input in zip(input_layers, alternate_inputs):
+            self.alternate_input_mappings[layer] = input
+
         # print "Network initialized."
         self._compile(ddqn)
 
     def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
 
         input_layers = []
+        inputs = [img_input]
         # weights_init = lasagne.init.GlorotUniform("relu")
         weights_init = lasagne.init.HeNormal("relu")
 
@@ -114,6 +115,7 @@ class DQN:
                                  b=lasagne.init.Constant(0.1), stride=1)
 
         if self.misc_state_included:
+            inputs.append(misc_input)
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)
@@ -128,7 +130,16 @@ class DQN:
                                 W=weights_init, b=lasagne.init.Constant(0.1))
 
         network = ls.DenseLayer(network, output_size, nonlinearity=None, b=lasagne.init.Constant(.1))
-        return network, input_layers
+        return network, input_layers, inputs
+
+    @staticmethod
+    def build_loss_expression(predicted, target):
+
+        abs_err = abs(predicted - target)
+        quadratic_part = tensor.minimum(abs_err, 1)
+        linear_part = abs_err - quadratic_part
+        loss = (0.5 * quadratic_part ** 2 + linear_part)
+        return loss
 
     def _compile(self, ddqn):
 
@@ -139,7 +150,7 @@ class DQN:
         q = ls.get_output(self.network, deterministic=True)
 
         if ddqn:
-            q2 = ls.get_output(self.network, deterministic=True, inputs=self.alternate_inputs)
+            q2 = ls.get_output(self.network, deterministic=True, inputs=self.alternate_input_mappings)
             q2_action_ref = tensor.argmax(q2, axis=1)
 
             q2_frozen = ls.get_output(self.frozen_network, deterministic=True)
@@ -148,15 +159,9 @@ class DQN:
             q2_max = tensor.max(ls.get_output(self.frozen_network, deterministic=True), axis=1)
 
         target_q = r + self.gamma * nonterminal * q2_max
+        predicted_q = q[tensor.arange(q.shape[0]), a]
 
-        # Loss
-        abs_err = abs(q[tensor.arange(q.shape[0]), a] - target_q)
-        quadratic_part = tensor.minimum(abs_err, 1)
-        linear_part = abs_err - quadratic_part
-        loss = (0.5 * quadratic_part ** 2 + linear_part).sum()
-
-        # loss = lasagne.objectives.squared_error(q[tensor.arange(q.shape[0]), a],target_q).mean()
-
+        loss = self.build_loss_expression(predicted_q, target_q).sum()
         params = ls.get_all_params(self.network, trainable=True)
 
         # updates = lasagne.updates.rmsprop(loss, params, self._learning_rate, rho=0.95)
@@ -167,17 +172,21 @@ class DQN:
 
         s0_img = self.inputs["S0"]
         s1_img = self.inputs["S1"]
-        print "Compiling the network..."
+
         if self.misc_state_included:
             s0_misc = self.inputs["S0_misc"]
             s1_misc = self.inputs["S1_misc"]
+            print "Compiling the training function..."
             self._learn = theano.function([s0_img, s0_misc, s1_img, s1_misc, a, r, nonterminal], loss,
                                           updates=updates, mode=mode, name="learn_fn")
+            print "Compiling the evaluation function..."
             self._evaluate = theano.function([s0_img, s0_misc], q, mode=mode,
                                              name="eval_fn")
         else:
+            print "Compiling the training function..."
             self._learn = theano.function([s0_img, s1_img, a, r, nonterminal], loss, updates=updates, mode=mode,
                                           name="learn_fn")
+            print "Compiling the evaluation function..."
             self._evaluate = theano.function([s0_img], q, mode=mode, name="eval_fn")
         print "Network compiled."
 
@@ -215,6 +224,7 @@ class DQN:
 class DuelingDQN(DQN):
     def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
         input_layers = []
+        inputs = [img_input]
         # weights_init = lasagne.init.GlorotUniform("relu")
         weights_init = lasagne.init.HeNormal("relu")
 
@@ -228,6 +238,7 @@ class DuelingDQN(DQN):
                                  b=lasagne.init.Constant(.1), stride=1)
 
         if self.misc_state_included:
+            inputs.append(misc_input)
             network = ls.FlattenLayer(network)
             misc_input_layer = ls.InputLayer(shape=(None, misc_len), input_var=misc_input)
             input_layers.append(misc_input_layer)
@@ -250,4 +261,5 @@ class DuelingDQN(DQN):
                                            b=lasagne.init.Constant(.1))
 
         network = DuellingMergeLayer([advanteges_branch, state_value_branch])
-        return network, input_layers
+        return network, input_layers, inputs
+
