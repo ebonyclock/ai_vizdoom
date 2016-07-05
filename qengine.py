@@ -78,6 +78,8 @@ class QEngine:
                     count_time_max=2100,
 
                     use_game_variables=True,
+                    rearrange_misc=False,
+
                     remember_n_actions=4,
                     one_hot_nactions=False,
 
@@ -120,7 +122,7 @@ class QEngine:
             self.reward_scale = reward_scale
         else:
             self.reward_scale = 1.0
-
+        self.rearrange_misc = rearrange_misc
         self.batchsize = batchsize
         self.history_length = max(history_length, 1)
         self.update_pattern = update_pattern
@@ -301,10 +303,18 @@ class QEngine:
 
             if self.single_state_misc_len > 0:
                 misc_len = len(state_misc)
-                hist = self.history_length
-                self.current_misc_state[0:(hist - 1) * misc_len] = self.current_misc_state[misc_len:hist * misc_len]
+                hist_len = self.history_length
 
-                self.current_misc_state[(hist - 1) * misc_len:hist * misc_len] = state_misc
+                # TODO don't move count_time when it's one hot - it's useless and performance drops slightly
+                if self.rearrange_misc:
+                    for i in xrange(misc_len):
+                        cms_part = self.current_misc_state[i * hist_len:(i + 1) * hist_len]
+                        cms_part[0:hist_len - 1] = cms_part[1:]
+                        cms_part[-1] = state_misc[i]
+                else:
+                    cms = self.current_misc_state
+                    cms[0:(hist_len - 1) * misc_len] = cms[misc_len:hist_len * misc_len]
+                    cms[(hist_len - 1) * misc_len:hist_len * misc_len] = state_misc
 
         else:
             self.current_image_state[:] = img
