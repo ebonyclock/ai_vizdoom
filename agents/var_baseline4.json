@@ -4,7 +4,7 @@
     "learning_rate": 0.00025,
     "gamma": 0.99,
   },
-  "net_type": "DQNHealthFC",
+  "net_type": "OneHotHealthDQN",
   "reshaped_x": 84,
   "reshaped_y": 84,
   "skiprate": 9,

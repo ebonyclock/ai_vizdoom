@@ -5,7 +5,7 @@ import numpy as np
 import theano
 import theano.tensor as tensor
 import theano.tensor as T
-from lasagne.nonlinearities import rectify
+from lasagne.nonlinearities import rectify, sigmoid
 from lasagne.updates import get_or_compute_grads
 
 
@@ -287,11 +287,59 @@ class DQNHealthFC(DQN):
             layers_for_merge = []
             for i in range(health_inputs):
                 health_input_layer = ls.InputLayer(shape=(None, 1), input_var=misc_input[:, i:i + 1])
+
                 health_layer = ls.DenseLayer(health_input_layer, units_per_health_input, nonlinearity=rectify,
                                              W=weights_init, b=lasagne.init.Constant(0.1))
+                health_layer = ls.DenseLayer(health_layer, units_per_health_input, nonlinearity=rectify,
+                                             W=weights_init, b=lasagne.init.Constant(0.1))
+
                 inputs.append(misc_input[:, i:i + 1])
                 input_layers.append(health_input_layer)
                 layers_for_merge.append(health_layer)
+
+            misc_input_layer = ls.InputLayer(shape=(None, misc_len - health_inputs),
+                                             input_var=misc_input[:, health_inputs:])
+            input_layers.append(misc_input_layer)
+            layers_for_merge.append(misc_input_layer)
+            inputs.append(misc_input[:, health_inputs:])
+
+            layers_for_merge.append(network)
+            network = ls.ConcatLayer(layers_for_merge)
+
+        network = ls.DenseLayer(network, 512, nonlinearity=rectify,
+                                W=weights_init, b=lasagne.init.Constant(0.1))
+
+        network = ls.DenseLayer(network, output_size, nonlinearity=None, b=lasagne.init.Constant(.1))
+        return network, input_layers, inputs
+
+
+class OneHotHealthDQN(DQN):
+    def _initialize_network(self, img_input_shape, misc_len, output_size, img_input, misc_input=None, **kwargs):
+        input_layers = []
+        inputs = [img_input]
+        # weights_init = lasagne.init.GlorotUniform("relu")
+        weights_init = lasagne.init.HeNormal("relu")
+
+        network = ls.InputLayer(shape=img_input_shape, input_var=img_input)
+        input_layers.append(network)
+        network = ls.Conv2DLayer(network, num_filters=32, filter_size=8, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(0.1), stride=4)
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=4, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(0.1), stride=2)
+        network = ls.Conv2DLayer(network, num_filters=64, filter_size=3, nonlinearity=rectify, W=weights_init,
+                                 b=lasagne.init.Constant(0.1), stride=1)
+        network = ls.FlattenLayer(network)
+
+        if self.misc_state_included:
+            health_inputs = 4
+            units_per_health_input = 100
+            layers_for_merge = []
+            for i in range(health_inputs):
+                oh_input = lasagne.utils.one_hot(misc_input[:, i] - 1, units_per_health_input)
+                health_input_layer = ls.InputLayer(shape=(None, units_per_health_input), input_var=oh_input)
+                inputs.append(oh_input)
+                input_layers.append(health_input_layer)
+                layers_for_merge.append(health_input_layer)
 
             misc_input_layer = ls.InputLayer(shape=(None, misc_len - health_inputs),
                                              input_var=misc_input[:, health_inputs:])
