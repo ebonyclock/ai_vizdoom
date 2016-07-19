@@ -2,12 +2,12 @@
   "network_args": {
     "ddqn": true,
     "learning_rate": 0.00025,
-    "gamma": 0.99,
+    "gamma": 1,
   },
   "net_type": "OneHotAllDQN",
   "reshaped_x": 84,
   "reshaped_y": 84,
-  "skiprate": 3,
+  "skiprate": 9,
 
   "history_length": 4,
   "melt_steps": 10000,
