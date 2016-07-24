@@ -9,7 +9,7 @@ from matplotlib.lines import Line2D
 from random import shuffle
 
 def marker():
-    markers = ["o", "v", "*", "<", "h", ">", "p", "s"]
+    markers = ["o", "v", "*", "<", "h", ">", "p", "s","^"]
     while True:
         for m in markers:
             yield m

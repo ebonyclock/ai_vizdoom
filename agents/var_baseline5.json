@@ -7,7 +7,7 @@
   "net_type": "OneHotAllDQN",
   "reshaped_x": 84,
   "reshaped_y": 84,
-  "skiprate": 9,
+  "skiprate": 3,
 
   "history_length": 4,
   "melt_steps": 10000,
@@ -37,7 +37,7 @@
   "one_hot_time": false,
 
   "count_time_interval": 1,
-  "count_time_max": 210
+  "count_time_max": 525
 
 
 }

@@ -107,10 +107,10 @@ class QEngine:
             self.count_time = bool(count_time)
             if self.count_time:
                 self.one_hot_time = one_hot_time
+                self.count_time_max = int(count_time_max)
+                self.count_time_interval = int(count_time_interval)
                 if one_hot_time:
-                    self.count_time_max = int(count_time_max)
-                    self.count_time_interval = int(count_time_interval)
-                    self.count_time_len = int(ceil(self.count_time_max / self.count_time_interval))
+                    self.count_time_len = int(self.count_time_max / self.count_time_interval)
                 else:
                     self.count_time_len = 1
         else:
@@ -265,9 +265,9 @@ class QEngine:
 
             if self.count_time:
                 raw_time = raw_state.number
+                processed_time = int(min(self.count_time_max, raw_time) / self.count_time_interval)
                 if self.one_hot_time:
-
-                    num_one_hot = (min(self.count_time_max, raw_time) - 1) / self.count_time_interval
+                    num_one_hot = processed_time - 1
                     state_number = np.zeros([self.count_time_len], dtype=np.float32)
                     state_number[num_one_hot] = 1
                     '''
@@ -289,7 +289,7 @@ class QEngine:
                     # HACK2 ends
                      '''
                 else:
-                    state_number = raw_time
+                    state_number = processed_time
 
                 state_misc[count_time_start:] = state_number
 
@@ -357,7 +357,7 @@ class QEngine:
             s = [self.current_image_state.copy()]
         return s
 
-    # Sets the whole state to zeros. 
+    # Sets the whole state to zeros.
     def reset_state(self):
         self.current_image_state.fill(0.0)
 

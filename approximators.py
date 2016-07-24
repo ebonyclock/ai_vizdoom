@@ -387,7 +387,8 @@ class OneHotAllDQN(DQN):
                 layers_for_merge.append(health_input_layer)
 
             time_inputs = 4
-            units_pertime_input = 210
+            # TODO set this somewhere else cause it depends on skiprate and timeout ....
+            units_pertime_input = 525
             for i in range(health_inputs,health_inputs+time_inputs):
                 oh_input = lasagne.utils.one_hot(misc_input[:, i] - 1, units_pertime_input)
                 time_input_layer = ls.InputLayer(shape=(None, units_pertime_input), input_var=oh_input)
